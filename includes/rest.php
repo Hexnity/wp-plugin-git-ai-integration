@@ -117,6 +117,20 @@ function github_chat_widget_normalize_messages($messages) {
 
 function github_chat_widget_send_chat_completion($settings, $payload) {
     $base_url = trim((string) $settings['base_url']);
+    $model_id = isset($payload['model']) ? github_chat_widget_normalize_model_id($payload['model']) : '';
+
+    if ($model_id === '') {
+        $model_id = github_chat_widget_normalize_model_id(isset($settings['model']) ? $settings['model'] : '');
+    }
+
+    if ($model_id === '') {
+        $defaults = github_chat_widget_defaults();
+        $model_id = github_chat_widget_normalize_model_id($defaults['model']);
+    }
+
+    if ($model_id !== '') {
+        $payload['model'] = $model_id;
+    }
 
     $request_args = array(
         'headers' => array(
@@ -139,6 +153,7 @@ function github_chat_widget_send_chat_completion($settings, $payload) {
 
     $status_code = (int) wp_remote_retrieve_response_code($response);
     $body = (string) wp_remote_retrieve_body($response);
+    $final_response = $response;
 
     if ($status_code === 404) {
         $alt_base_url = github_chat_widget_alternate_base_url($base_url);
@@ -149,9 +164,14 @@ function github_chat_widget_send_chat_completion($settings, $payload) {
                 if ($retry_status >= 200 && $retry_status < 300) {
                     $status_code = $retry_status;
                     $body = (string) wp_remote_retrieve_body($retry_response);
+                    $final_response = $retry_response;
                 }
             }
         }
+    }
+
+    if ($model_id !== '' && $status_code >= 200 && $status_code < 300) {
+        github_chat_widget_persist_usage_data($model_id, $final_response);
     }
 
     if ($status_code < 200 || $status_code >= 300) {

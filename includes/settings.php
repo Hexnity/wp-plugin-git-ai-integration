@@ -18,6 +18,11 @@ function github_chat_widget_get_settings() {
         $settings['response_text_color'] = github_chat_widget_sanitize_hex_color($saved['text_color'], $defaults['response_text_color']);
     }
 
+    $settings['model'] = github_chat_widget_normalize_model_id(isset($settings['model']) ? $settings['model'] : '');
+    if ($settings['model'] === '') {
+        $settings['model'] = $defaults['model'];
+    }
+
     return $settings;
 }
 
@@ -93,10 +98,18 @@ function github_chat_widget_sanitize_settings($input) {
         $api_key = sanitize_text_field($api_key);
     }
 
+    $model = isset($input['model']) ? github_chat_widget_normalize_model_id($input['model']) : '';
+    if ($model === '' && !empty($current_settings['model'])) {
+        $model = github_chat_widget_normalize_model_id($current_settings['model']);
+    }
+    if ($model === '') {
+        $model = $defaults['model'];
+    }
+
     return array(
         'chat_title' => isset($input['chat_title']) ? sanitize_text_field($input['chat_title']) : $defaults['chat_title'],
         'api_key' => $api_key,
-        'model' => isset($input['model']) ? sanitize_text_field($input['model']) : $defaults['model'],
+        'model' => $model,
         'base_url' => isset($input['base_url'])
             ? github_chat_widget_sanitize_base_url($input['base_url'], $defaults['base_url'])
             : $defaults['base_url'],

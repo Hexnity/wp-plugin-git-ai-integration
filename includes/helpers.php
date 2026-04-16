@@ -42,6 +42,21 @@ function github_chat_widget_dynamic_selector_system_prompt() {
         . "Rules: include max 5 items, type must be page or post, and IDs must exist in the catalog. Use name, slug, and content_preview to match intent. Prefer exact profile/about/privacy intent matches.";
 }
 
+function github_chat_widget_normalize_model_id($value) {
+    $value = trim(sanitize_text_field((string) $value));
+
+    if ($value === '') {
+        return '';
+    }
+
+    if (strpos($value, '/') !== false) {
+        $parts = explode('/', $value);
+        $value = end($parts);
+    }
+
+    return trim((string) $value);
+}
+
 function github_chat_widget_defaults() {
     return array(
         'chat_title' => 'Github Chat',
@@ -295,6 +310,47 @@ function github_chat_widget_save_chat_history($email, $messages) {
     );
 
     return (bool) $inserted;
+}
+
+function github_chat_widget_persist_usage_data($model_id, $response) {
+    $model_id = github_chat_widget_normalize_model_id($model_id);
+    if ($model_id === '' || is_wp_error($response)) {
+        return;
+    }
+
+    $remaining = sanitize_text_field((string) wp_remote_retrieve_header($response, 'x-ratelimit-remaining-requests'));
+    $limit     = sanitize_text_field((string) wp_remote_retrieve_header($response, 'x-ratelimit-limit-requests'));
+    $reset     = sanitize_text_field((string) wp_remote_retrieve_header($response, 'x-ratelimit-reset'));
+    $rem_tok   = sanitize_text_field((string) wp_remote_retrieve_header($response, 'x-ratelimit-remaining-tokens'));
+
+    if ($remaining === '' && $limit === '') {
+        return;
+    }
+
+    $usage = get_option('gh_models_usage_data', array());
+    if (!is_array($usage)) {
+        $usage = array();
+    }
+
+    $reset_ts = 0;
+    if ($reset !== '') {
+        if (is_numeric($reset)) {
+            $reset_ts = (int) $reset;
+        } else {
+            $parsed = strtotime($reset);
+            $reset_ts = ($parsed !== false) ? (int) $parsed : 0;
+        }
+    }
+
+    $usage[$model_id] = array(
+        'remaining'          => ($remaining !== '') ? (int) $remaining : null,
+        'limit'              => ($limit !== '')     ? (int) $limit     : null,
+        'reset'              => $reset_ts,
+        'remaining_tokens'   => ($rem_tok !== '')   ? (int) $rem_tok   : null,
+        'updated_at'         => time(),
+    );
+
+    update_option('gh_models_usage_data', $usage, false);
 }
 
 function github_chat_widget_sanitize_hex_color($value, $fallback) {

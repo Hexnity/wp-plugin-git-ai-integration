@@ -83,6 +83,64 @@
   font-weight: 600;
 }
 
+.github-chat-widget-model-select {
+  width: 100%;
+  max-width: 360px;
+}
+
+.github-chat-widget-model-desc {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 12px;
+  max-width: 440px;
+  line-height: 1.5;
+  min-height: 18px;
+}
+
+.github-chat-widget-usage-indicator {
+  margin: 8px 0 0;
+  font-size: 12px;
+  max-width: 480px;
+  line-height: 1.5;
+  min-height: 20px;
+}
+
+.gcw-usage-unknown {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.gcw-usage-quota {
+  font-weight: normal;
+  padding: 3px 8px;
+  border-radius: 5px;
+  display: inline-block;
+}
+
+.gcw-usage-ok {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.gcw-usage-low {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.gcw-usage-critical {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.gcw-usage-tokens {
+  margin-left: 6px;
+  color: #475569;
+  font-size: 11px;
+}
+
 @media (max-width: 782px) {
   .github-chat-widget-admin-card .form-table th,
   .github-chat-widget-admin-card .form-table td {
