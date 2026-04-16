@@ -85,5 +85,89 @@
     sel.addEventListener('change', function () {
       updateModel(sel.value);
     });
+
+    // Chat History Modal
+    var modal = document.getElementById('gcw-history-modal');
+    var modalMessages = document.getElementById('gcw-history-modal-messages');
+    var modalTitle = modal ? modal.querySelector('#gcw-history-modal-title strong') : null;
+    var modalClose = modal ? modal.querySelector('.gcw-history-modal-close') : null;
+    var modalBackdrop = modal ? modal.querySelector('.gcw-history-modal-backdrop') : null;
+
+    function closeHistoryModal() {
+      if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+    }
+
+    function openHistoryModal(email, messagesJson) {
+      if (!modal || !modalMessages) return;
+
+      var messages = [];
+      try {
+        messages = JSON.parse(messagesJson);
+      } catch (e) {
+        messages = [];
+      }
+      if (!Array.isArray(messages)) messages = [];
+
+      if (modalTitle) modalTitle.textContent = email;
+
+      var html = '';
+      messages.forEach(function (msg) {
+        if (!msg || !msg.role) return;
+        var role = msg.role;
+        var text = '';
+
+        if (typeof msg.content === 'string') {
+          text = msg.content;
+        } else if (msg.content && typeof msg.content === 'object') {
+          // assistant payload may have main_answer
+          text = msg.content.main_answer || JSON.stringify(msg.content);
+        }
+
+        if (role === 'system') return; // skip system messages
+
+        var roleClass = role === 'user' ? 'gcw-hm-user' : 'gcw-hm-assistant';
+        var roleLabel = role === 'user' ? 'User' : 'Assistant';
+        html += '<div class="gcw-hm-bubble ' + roleClass + '">'
+          + '<span class="gcw-hm-role">' + roleLabel + '</span>'
+          + '<p class="gcw-hm-text">' + escHtml(String(text)) + '</p>'
+          + '</div>';
+      });
+
+      if (html === '') {
+        html = '<p class="gcw-hm-empty">No messages to display.</p>';
+      }
+
+      modalMessages.innerHTML = html;
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+      modalMessages.scrollTop = 0;
+    }
+
+    function escHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/\n/g, '<br>');
+    }
+
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('.gcw-view-history-btn');
+      if (btn) {
+        openHistoryModal(btn.dataset.email, btn.dataset.messages);
+        return;
+      }
+    });
+
+    if (modalClose) modalClose.addEventListener('click', closeHistoryModal);
+    if (modalBackdrop) modalBackdrop.addEventListener('click', closeHistoryModal);
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeHistoryModal();
+    });
   });
 }());

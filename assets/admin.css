@@ -148,3 +148,110 @@
     width: 100%;
   }
 }
+
+  /* ── Chat History Modal ─────────────────────────────── */
+  .gcw-history-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .gcw-history-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+  }
+
+  .gcw-history-modal-box {
+    position: relative;
+    z-index: 1;
+    background: #ffffff;
+    border-radius: 14px;
+    width: 100%;
+    max-width: 540px;
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+    overflow: hidden;
+  }
+
+  .gcw-history-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 14px;
+    color: #1e293b;
+    flex-shrink: 0;
+  }
+
+  .gcw-history-modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 22px;
+    color: #64748b;
+    line-height: 1;
+    padding: 0 4px;
+  }
+
+  .gcw-history-modal-close:hover {
+    color: #0f172a;
+  }
+
+  .gcw-history-modal-messages {
+    padding: 16px 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+  }
+
+  .gcw-hm-bubble {
+    max-width: 88%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .gcw-hm-user {
+    align-self: flex-end;
+    background: #1e40af;
+    color: #ffffff;
+    border-bottom-right-radius: 4px;
+  }
+
+  .gcw-hm-assistant {
+    align-self: flex-start;
+    background: #f1f5f9;
+    color: #1e293b;
+    border-bottom-left-radius: 4px;
+  }
+
+  .gcw-hm-role {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+    opacity: 0.65;
+  }
+
+  .gcw-hm-text {
+    margin: 0;
+  }
+
+  .gcw-hm-empty {
+    color: #94a3b8;
+    font-size: 13px;
+    text-align: center;
+    padding: 24px 0;
+  }

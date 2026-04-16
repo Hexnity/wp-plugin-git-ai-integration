@@ -264,7 +264,7 @@ function github_chat_widget_rest_handler(WP_REST_Request $request) {
     if ($enable_ui_buttons) {
         if ($enable_dynamic_system_info) {
             $label_hint = $default_button_label !== '' ? '"' . $default_button_label . '"' : 'a descriptive label';
-            $system_prompt .= "\n\nWhen dynamic website content context is provided, treat it as authoritative source data. If relevant facts are present, summarize 1-3 concrete points from that context in main_answer before suggesting navigation. Only say information is missing when the context truly does not contain the requested detail.";
+            $system_prompt .= "\n\nWhen website content context is provided in a subsequent system message, treat it as the ground truth. Extract specific facts from it and include them in main_answer. Never say information is missing if the context contains it. Keep main_answer concise (under 100 words) but factual.";
             $system_prompt .= "\nWhen a page or post from the provided website content context is directly relevant to the user's question, set ui_action.show_button=true, set ui_action.target_url to the URL of that page or post from the context, and set ui_action.button_label to " . $label_hint . ". Do not invent URLs; only use URLs present in the context.";
         } elseif ($section_targets !== '') {
             $system_prompt .= "\n\nAllowed sections/pages: " . $section_targets . ".";
@@ -329,7 +329,9 @@ function github_chat_widget_rest_handler(WP_REST_Request $request) {
     if ($dynamic_context !== '') {
         $final_messages[] = array(
             'role' => 'system',
-            'content' => "Dynamic website content context:\n\n" . $dynamic_context . "\n\nUse this context to answer with concrete facts when relevant. If previous assistant replies said information is missing but this context contains it, trust this context and answer from it.",
+            'content' => "IMPORTANT: The following is authoritative content extracted directly from this website's pages. You MUST use this content to answer the user's question. Do NOT say you lack information if the answer is present here. Quote or paraphrase specific facts from this content in your main_answer.\n\n"
+                . $dynamic_context
+                . "\n\nEnd of website content. Base your answer on the above.",
         );
     }
 

@@ -30,16 +30,18 @@ function github_chat_widget_default_system_prompt() {
 }
 
 function github_chat_widget_dynamic_selector_system_prompt() {
-    return "You select relevant WordPress pages/posts for a user request. "
-        . "Use only the provided catalog and return strict JSON only.\n"
+    return "You are a page selector. Given a user message and a catalog of WordPress pages/posts, return the IDs of the most relevant pages that contain information needed to answer the user's message.\n"
+        . "Return ONLY a raw JSON object. No explanation, no markdown, no code blocks.\n"
         . "Output format:\n"
-        . "{\n"
-        . "  \"matches\": [\n"
-        . "    {\"id\": 123, \"type\": \"page\"},\n"
-        . "    {\"id\": 456, \"type\": \"post\"}\n"
-        . "  ]\n"
-        . "}\n"
-        . "Rules: include max 5 items, type must be page or post, and IDs must exist in the catalog. Use name, slug, and content_preview to match intent. Prefer exact profile/about/privacy intent matches.";
+        . "{\"matches\": [{\"id\": 123, \"type\": \"page\"}, {\"id\": 456, \"type\": \"post\"}]}\n"
+        . "Rules:\n"
+        . "- Include max 5 items.\n"
+        . "- type must be \"page\" or \"post\".\n"
+        . "- IDs must exist in the provided catalog.\n"
+        . "- Use name, slug, and content_preview to determine relevance.\n"
+        . "- If the user asks about a person, biography, portfolio, skills, projects, or about the site owner, prefer pages whose name or slug contains 'about', 'home', 'portfolio', 'profile', 'bio', or whose content_preview mentions the person's name.\n"
+        . "- When uncertain, include more pages rather than fewer.\n"
+        . "- If no page is relevant, return {\"matches\": []}.";
 }
 
 function github_chat_widget_normalize_model_id($value) {
@@ -764,9 +766,12 @@ function github_chat_widget_build_content_catalog() {
 
             $title = get_the_title($post);
             $permalink = get_permalink((int) $post->ID);
-            $preview = trim((string) wp_strip_all_tags((string) $post->post_content));
-            if (strlen($preview) > 220) {
-                $preview = substr($preview, 0, 220);
+            // Render blocks/shortcodes first so Gutenberg block comments are gone before stripping tags
+            $rendered_content = apply_filters('the_content', $post->post_content);
+            $preview = trim((string) wp_strip_all_tags((string) $rendered_content));
+            $preview = preg_replace('/\s+/', ' ', $preview);
+            if (strlen($preview) > 500) {
+                $preview = substr($preview, 0, 500);
             }
             $catalog[] = array(
                 'id' => (int) $post->ID,
@@ -964,7 +969,7 @@ function github_chat_widget_fetch_post_content_via_rest($type, $id) {
     $title = html_entity_decode(wp_strip_all_tags($title_html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
     $content_html = isset($data['content']['rendered']) ? (string) $data['content']['rendered'] : '';
-    $content = html_entity_decode($content_html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $content = html_entity_decode(wp_strip_all_tags($content_html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
     return array(
         'id' => $id,
