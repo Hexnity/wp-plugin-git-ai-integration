@@ -3,7 +3,7 @@
  * Plugin Name: Github Chat Widget
  * Plugin URI: https://shashinthalk.cc
  * Description: Floating AI chat widget with UI action buttons and a WordPress REST endpoint.
- * Version: 1.3.2
+ * Version: 1.3.6
  * Author: Nishan Shashintha
  * License: GPL2+
  */
