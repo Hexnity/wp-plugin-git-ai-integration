@@ -21,6 +21,11 @@ function github_chat_widget_register_assets() {
     );
 
     $settings = github_chat_widget_get_settings();
+    $advanced_css = github_chat_widget_sanitize_custom_css($settings['advanced_css']);
+
+    if ($advanced_css !== '') {
+        wp_add_inline_style('github-chat-widget-style', $advanced_css);
+    }
 
     $allowed_sections = array_filter(array_map('trim', explode(',', (string) $settings['section_targets'])));
     $button_routes = github_chat_widget_parse_button_routes($settings['button_routes']);
@@ -36,7 +41,6 @@ function github_chat_widget_register_assets() {
     wp_localize_script('github-chat-widget-script', 'GithubChatWidgetConfig', array(
         'restUrl' => esc_url_raw(rest_url('github-chat-widget/v1/chat')),
         'sessionUrl' => esc_url_raw(rest_url('github-chat-widget/v1/session')),
-        'nonce' => wp_create_nonce('wp_rest'),
         'chatTitle' => sanitize_text_field($settings['chat_title']),
         'welcomeText' => sanitize_text_field($settings['welcome_text']),
         'thinkingText' => sanitize_text_field($settings['thinking_text']),
@@ -60,6 +64,10 @@ function github_chat_widget_register_assets() {
         'accentColor' => github_chat_widget_sanitize_hex_color($settings['accent_color'], '#10b981'),
         'requestTextColor' => github_chat_widget_sanitize_hex_color($settings['request_text_color'], '#ffffff'),
         'responseTextColor' => github_chat_widget_sanitize_hex_color($settings['response_text_color'], '#d1d5db'),
+        'titleFontSize' => github_chat_widget_sanitize_clamp_value($settings['title_font_size'], 'clamp(0.95rem, 0.9rem + 0.2vw, 1.05rem)'),
+        'bodyFontSize' => github_chat_widget_sanitize_clamp_value($settings['body_font_size'], 'clamp(0.875rem, 0.84rem + 0.15vw, 0.95rem)'),
+        'inputFontSize' => github_chat_widget_sanitize_clamp_value($settings['input_font_size'], 'clamp(0.875rem, 0.84rem + 0.15vw, 1rem)'),
+        'buttonFontSize' => github_chat_widget_sanitize_clamp_value($settings['button_font_size'], 'clamp(0.75rem, 0.72rem + 0.15vw, 0.875rem)'),
         'enableUiButtons' => !empty($settings['enable_ui_buttons']),
         'defaultButtonLabel' => sanitize_text_field($settings['default_button_label']),
         'allowedSections' => array_values($allowed_sections),

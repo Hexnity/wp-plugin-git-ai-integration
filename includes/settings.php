@@ -120,11 +120,16 @@ function github_chat_widget_sanitize_settings($input) {
         'accent_color' => isset($input['accent_color']) ? github_chat_widget_sanitize_hex_color($input['accent_color'], $defaults['accent_color']) : $defaults['accent_color'],
         'request_text_color' => isset($input['request_text_color']) ? github_chat_widget_sanitize_hex_color($input['request_text_color'], $defaults['request_text_color']) : $defaults['request_text_color'],
         'response_text_color' => isset($input['response_text_color']) ? github_chat_widget_sanitize_hex_color($input['response_text_color'], $defaults['response_text_color']) : $defaults['response_text_color'],
+        'title_font_size' => isset($input['title_font_size']) ? github_chat_widget_sanitize_clamp_value($input['title_font_size'], $defaults['title_font_size']) : $defaults['title_font_size'],
+        'body_font_size' => isset($input['body_font_size']) ? github_chat_widget_sanitize_clamp_value($input['body_font_size'], $defaults['body_font_size']) : $defaults['body_font_size'],
+        'input_font_size' => isset($input['input_font_size']) ? github_chat_widget_sanitize_clamp_value($input['input_font_size'], $defaults['input_font_size']) : $defaults['input_font_size'],
+        'button_font_size' => isset($input['button_font_size']) ? github_chat_widget_sanitize_clamp_value($input['button_font_size'], $defaults['button_font_size']) : $defaults['button_font_size'],
         'enable_ui_buttons' => isset($input['enable_ui_buttons']) ? '1' : '',
         'enable_dynamic_system_info' => isset($input['enable_dynamic_system_info']) ? '1' : '',
         'section_targets' => isset($input['section_targets']) ? sanitize_text_field($input['section_targets']) : $defaults['section_targets'],
         'default_button_label' => isset($input['default_button_label']) ? sanitize_text_field($input['default_button_label']) : $defaults['default_button_label'],
         'button_routes' => isset($input['button_routes']) ? sanitize_textarea_field($input['button_routes']) : $defaults['button_routes'],
         'system_prompt' => isset($input['system_prompt']) ? sanitize_textarea_field($input['system_prompt']) : $defaults['system_prompt'],
+        'advanced_css' => isset($input['advanced_css']) ? github_chat_widget_sanitize_custom_css($input['advanced_css']) : $defaults['advanced_css'],
     );
 }

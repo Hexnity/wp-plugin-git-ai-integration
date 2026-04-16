@@ -71,6 +71,18 @@
   font-size: 12px;
 }
 
+.github-chat-widget-admin-code-area {
+  min-height: 180px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.github-chat-widget-admin-label {
+  display: inline-block;
+  margin: 12px 0 6px;
+  font-weight: 600;
+}
+
 @media (max-width: 782px) {
   .github-chat-widget-admin-card .form-table th,
   .github-chat-widget-admin-card .form-table td {
