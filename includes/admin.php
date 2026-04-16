@@ -61,6 +61,7 @@ function github_chat_widget_admin_page() {
     $settings = github_chat_widget_get_settings();
     $email_rows = github_chat_widget_get_admin_email_rows(100);
     $history_rows = github_chat_widget_get_admin_history_rows(100);
+    $css_class_reference = ".github-chat-widget-root\n.github-chat-widget-panel\n.github-chat-widget-header\n.github-chat-widget-title\n.github-chat-widget-change-email\n.github-chat-widget-email-gate\n.github-chat-widget-email-title\n.github-chat-widget-email-form\n.github-chat-widget-email-input\n.github-chat-widget-email-submit\n.github-chat-widget-email-error\n.github-chat-widget-messages\n.github-chat-widget-row.is-user\n.github-chat-widget-row.is-ai\n.github-chat-widget-bubble\n.github-chat-widget-actions\n.github-chat-widget-nav-button\n.github-chat-widget-form\n.github-chat-widget-input\n.github-chat-widget-send\n.github-chat-widget-launcher";
     ?>
     <div class="wrap github-chat-widget-admin-wrap">
         <h1>Github Chat Settings</h1>
@@ -183,6 +184,25 @@ function github_chat_widget_admin_page() {
                             <td><input id="github_chat_widget_response_text_color" type="color" name="github_chat_widget_settings[response_text_color]" value="<?php echo esc_attr($settings['response_text_color']); ?>" /></td>
                         </tr>
                         <tr>
+                            <th scope="row"><label for="github_chat_widget_title_font_size">Title Font Size</label></th>
+                            <td>
+                                <input id="github_chat_widget_title_font_size" type="text" class="regular-text code" name="github_chat_widget_settings[title_font_size]" value="<?php echo esc_attr($settings['title_font_size']); ?>" />
+                                <p class="description">Use a CSS clamp() value. Example: clamp(0.95rem, 0.9rem + 0.2vw, 1.05rem)</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="github_chat_widget_body_font_size">Body Font Size</label></th>
+                            <td><input id="github_chat_widget_body_font_size" type="text" class="regular-text code" name="github_chat_widget_settings[body_font_size]" value="<?php echo esc_attr($settings['body_font_size']); ?>" /></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="github_chat_widget_input_font_size">Input Font Size</label></th>
+                            <td><input id="github_chat_widget_input_font_size" type="text" class="regular-text code" name="github_chat_widget_settings[input_font_size]" value="<?php echo esc_attr($settings['input_font_size']); ?>" /></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="github_chat_widget_button_font_size">Button Font Size</label></th>
+                            <td><input id="github_chat_widget_button_font_size" type="text" class="regular-text code" name="github_chat_widget_settings[button_font_size]" value="<?php echo esc_attr($settings['button_font_size']); ?>" /></td>
+                        </tr>
+                        <tr>
                             <th scope="row"><label for="github_chat_widget_launcher_border_color">Launcher Border Color</label></th>
                             <td><input id="github_chat_widget_launcher_border_color" type="color" name="github_chat_widget_settings[launcher_border_color]" value="<?php echo esc_attr($settings['launcher_border_color']); ?>" /></td>
                         </tr>
@@ -250,6 +270,14 @@ function github_chat_widget_admin_page() {
                     <textarea id="github_chat_widget_system_prompt" class="large-text code" rows="14" name="github_chat_widget_settings[system_prompt]"><?php echo esc_textarea($settings['system_prompt']); ?></textarea>
                     <p class="description">Use strict JSON output format to preserve UI actions.</p>
                 </section>
+
+                <section class="github-chat-widget-admin-card github-chat-widget-admin-card-full">
+                    <h2>Advanced CSS</h2>
+                    <textarea id="github_chat_widget_advanced_css" class="large-text code github-chat-widget-admin-code-area" rows="12" name="github_chat_widget_settings[advanced_css]"><?php echo esc_textarea($settings['advanced_css']); ?></textarea>
+                    <p class="description">Custom CSS is loaded on the frontend widget after the default stylesheet. Target the classes below.</p>
+                    <label class="github-chat-widget-admin-label" for="github_chat_widget_css_classes">Available CSS Classes</label>
+                    <textarea id="github_chat_widget_css_classes" class="large-text code github-chat-widget-admin-code-area" rows="12" readonly><?php echo esc_textarea($css_class_reference); ?></textarea>
+                </section>
             </div>
 
             <?php submit_button('Save Settings'); ?>
@@ -259,6 +287,7 @@ function github_chat_widget_admin_page() {
             <h2>Usage</h2>
             <p>Shortcode: <code>[github_chat_widget]</code> when Auto Inject is disabled.</p>
             <p>Route keys should match likely user intents, such as <code>contact</code> or <code>projects</code>.</p>
+            <p>Advanced CSS is intended for frontend widget styling, including the email input, chat input, send button, and navigation button states.</p>
         </div>
 
         <div class="github-chat-widget-admin-help">

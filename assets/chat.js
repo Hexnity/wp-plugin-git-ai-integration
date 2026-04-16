@@ -138,6 +138,10 @@
     root.style.setProperty('--gcw-response-text', String(config.responseTextColor || '#d1d5db'));
     root.style.setProperty('--gcw-launcher-border-color', String(config.launcherBorderColor || '#0f172a'));
     root.style.setProperty('--gcw-launcher-border-width', Number(config.launcherBorderWidth || 2) + 'px');
+    root.style.setProperty('--gcw-title-font-size', String(config.titleFontSize || 'clamp(0.95rem, 0.9rem + 0.2vw, 1.05rem)'));
+    root.style.setProperty('--gcw-body-font-size', String(config.bodyFontSize || 'clamp(0.875rem, 0.84rem + 0.15vw, 0.95rem)'));
+    root.style.setProperty('--gcw-input-font-size', String(config.inputFontSize || 'clamp(0.875rem, 0.84rem + 0.15vw, 1rem)'));
+    root.style.setProperty('--gcw-button-font-size', String(config.buttonFontSize || 'clamp(0.75rem, 0.72rem + 0.15vw, 0.875rem)'));
   }
 
   function appendMessage(messagesWrap, message, config) {
@@ -247,8 +251,7 @@
     var response = await fetch(config.sessionUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-WP-Nonce': config.nonce || ''
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ email: email })
     });
@@ -276,8 +279,7 @@
     var response = await fetch(config.restUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-WP-Nonce': config.nonce || ''
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         email: email,

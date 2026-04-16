@@ -9,6 +9,10 @@
   --gcw-response-text: #d1d5db;
   --gcw-launcher-border-color: #0f172a;
   --gcw-launcher-border-width: 2px;
+  --gcw-title-font-size: clamp(0.95rem, 0.9rem + 0.2vw, 1.05rem);
+  --gcw-body-font-size: clamp(0.875rem, 0.84rem + 0.15vw, 0.95rem);
+  --gcw-input-font-size: clamp(0.875rem, 0.84rem + 0.15vw, 1rem);
+  --gcw-button-font-size: clamp(0.75rem, 0.72rem + 0.15vw, 0.875rem);
   border: none !important;
   position: fixed;
   right: var(--gcw-offset-x);
@@ -96,7 +100,7 @@
 .github-chat-widget-title {
   margin: 0;
   color: #ffffff;
-  font-size: 14px;
+  font-size: var(--gcw-title-font-size);
   font-weight: 700;
   margin-right: auto;
 }
@@ -106,7 +110,7 @@
   background: rgba(255, 255, 255, 0.06);
   color: #cbd5e1;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: var(--gcw-button-font-size);
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -159,7 +163,7 @@
 .github-chat-widget-email-title {
   margin: 0 0 12px;
   color: #ffffff;
-  font-size: 14px;
+  font-size: var(--gcw-title-font-size);
   font-weight: 600;
 }
 
@@ -176,7 +180,7 @@
   color: #ffffff;
   min-height: 40px;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: var(--gcw-input-font-size);
   font-family: inherit;
   outline: none;
 }
@@ -195,6 +199,7 @@
   background: var(--gcw-accent);
   color: #0f172a;
   font-weight: 700;
+  font-size: var(--gcw-button-font-size);
   min-height: 40px;
   padding: 0 12px;
   font-family: inherit;
@@ -210,13 +215,13 @@
   min-height: 20px;
   margin: 10px 0 0;
   color: #fca5a5;
-  font-size: 12px;
+  font-size: var(--gcw-button-font-size);
 }
 
 .github-chat-widget-empty {
   margin: auto;
   color: #94a3b8;
-  font-size: 14px;
+  font-size: var(--gcw-body-font-size);
   text-align: center;
 }
 
@@ -254,7 +259,7 @@
   max-width: 82%;
   padding: 10px 12px;
   border-radius: 14px;
-  font-size: 14px;
+  font-size: var(--gcw-body-font-size);
   line-height: 1.45;
   word-break: break-word;
 }
@@ -282,7 +287,7 @@
   color: var(--gcw-accent);
   border-radius: 10px;
   padding: 8px 12px;
-  font-size: 11px;
+  font-size: var(--gcw-button-font-size);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -296,7 +301,7 @@
 .github-chat-widget-thinking {
   display: none;
   color: var(--gcw-accent);
-  font-size: 11px;
+  font-size: var(--gcw-button-font-size);
   padding: 0 16px 8px;
 }
 
@@ -317,7 +322,7 @@
   color: #ffffff;
   min-height: 42px;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: var(--gcw-input-font-size);
   font-family: inherit;
   outline: none;
 }
@@ -336,6 +341,7 @@
   background: var(--gcw-accent);
   color: #0f172a;
   font-weight: 700;
+  font-size: var(--gcw-button-font-size);
   min-height: 42px;
   padding: 0 14px;
   font-family: inherit;

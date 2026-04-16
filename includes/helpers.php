@@ -68,12 +68,17 @@ function github_chat_widget_defaults() {
         'accent_color' => '#10b981',
         'request_text_color' => '#ffffff',
         'response_text_color' => '#d1d5db',
+        'title_font_size' => 'clamp(0.95rem, 0.9rem + 0.2vw, 1.05rem)',
+        'body_font_size' => 'clamp(0.875rem, 0.84rem + 0.15vw, 0.95rem)',
+        'input_font_size' => 'clamp(0.875rem, 0.84rem + 0.15vw, 1rem)',
+        'button_font_size' => 'clamp(0.75rem, 0.72rem + 0.15vw, 0.875rem)',
         'enable_ui_buttons' => '1',
         'enable_dynamic_system_info' => '',
         'section_targets' => 'experience,projects,skills,contact',
         'default_button_label' => 'Open Section',
         'button_routes' => "contact|Contact|/contact\nprojects|View Projects|/projects\nexperience|Experience|/experience",
         'system_prompt' => github_chat_widget_default_system_prompt(),
+        'advanced_css' => '',
     );
 }
 
@@ -330,6 +335,40 @@ function github_chat_widget_sanitize_base_url($value, $fallback) {
     }
 
     return $url;
+}
+
+function github_chat_widget_sanitize_clamp_value($value, $fallback) {
+    $value = trim((string) $value);
+
+    if ($value === '') {
+        return (string) $fallback;
+    }
+
+    if (strlen($value) > 100) {
+        return (string) $fallback;
+    }
+
+    if (!preg_match('/^clamp\(\s*-?(?:\d+|\d*\.\d+)(?:px|rem|em|vw|vh|vmin|vmax|%)\s*,\s*-?(?:\d+|\d*\.\d+)(?:px|rem|em|vw|vh|vmin|vmax|%)\s*,\s*-?(?:\d+|\d*\.\d+)(?:px|rem|em|vw|vh|vmin|vmax|%)\s*\)$/i', $value)) {
+        return (string) $fallback;
+    }
+
+    return $value;
+}
+
+function github_chat_widget_sanitize_custom_css($value) {
+    $css = trim((string) $value);
+
+    if ($css === '') {
+        return '';
+    }
+
+    $css = wp_kses_no_null($css);
+    $css = str_ireplace(array('<style', '</style', '<?', '?>'), '', $css);
+    $css = preg_replace('/@import/i', '', $css);
+    $css = preg_replace('/expression\s*\(/i', '', $css);
+    $css = preg_replace('/javascript\s*:/i', '', $css);
+
+    return trim((string) $css);
 }
 
 function github_chat_widget_parse_button_routes($value) {
