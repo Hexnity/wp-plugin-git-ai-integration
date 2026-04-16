@@ -430,7 +430,7 @@ function github_chat_widget_admin_page() {
         </div>
 
         <div class="github-chat-widget-admin-help">
-            <h2>Chat History JSON</h2>
+            <h2>Chat History</h2>
             <div class="github-chat-widget-admin-table-wrap">
                 <table class="widefat striped">
                     <thead>
@@ -439,7 +439,7 @@ function github_chat_widget_admin_page() {
                             <th>Email</th>
                             <th>Messages</th>
                             <th>Updated</th>
-                            <th>JSON</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -451,7 +451,12 @@ function github_chat_widget_admin_page() {
                                     <td><?php echo esc_html((string) $row['message_count']); ?></td>
                                     <td><?php echo esc_html((string) $row['updated_at']); ?></td>
                                     <td>
-                                        <textarea class="github-chat-widget-admin-json" readonly rows="5"><?php echo esc_textarea((string) $row['messages_json']); ?></textarea>
+                                        <button
+                                            type="button"
+                                            class="button gcw-view-history-btn"
+                                            data-email="<?php echo esc_attr((string) $row['email']); ?>"
+                                            data-messages="<?php echo esc_attr((string) $row['messages_json']); ?>"
+                                        >View Chat</button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -462,6 +467,17 @@ function github_chat_widget_admin_page() {
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <div id="gcw-history-modal" class="gcw-history-modal" aria-modal="true" role="dialog" aria-label="Chat History" style="display:none;">
+            <div class="gcw-history-modal-backdrop"></div>
+            <div class="gcw-history-modal-box">
+                <div class="gcw-history-modal-header">
+                    <span id="gcw-history-modal-title">Chat with <strong></strong></span>
+                    <button type="button" class="gcw-history-modal-close" aria-label="Close">&times;</button>
+                </div>
+                <div id="gcw-history-modal-messages" class="gcw-history-modal-messages"></div>
             </div>
         </div>
     </div>
