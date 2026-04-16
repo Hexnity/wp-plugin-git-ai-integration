@@ -26,8 +26,84 @@ function github_chat_widget_admin_assets($hook) {
         array(),
         GITHUB_CHAT_WIDGET_VERSION
     );
+
+    wp_enqueue_script(
+        'github-chat-widget-admin-script',
+        GITHUB_CHAT_WIDGET_URL . 'assets/admin.js',
+        array(),
+        GITHUB_CHAT_WIDGET_VERSION,
+        true
+    );
+
+    $raw_usage = get_option('gh_models_usage_data', array());
+    $usage_data = array();
+    if (is_array($raw_usage)) {
+        foreach ($raw_usage as $model_id => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $usage_data[sanitize_text_field((string) $model_id)] = array(
+                'remaining'        => isset($entry['remaining'])        ? (int) $entry['remaining']        : null,
+                'limit'            => isset($entry['limit'])            ? (int) $entry['limit']            : null,
+                'reset'            => isset($entry['reset'])            ? (int) $entry['reset']            : 0,
+                'remaining_tokens' => isset($entry['remaining_tokens']) ? (int) $entry['remaining_tokens'] : null,
+                'updated_at'       => isset($entry['updated_at'])       ? (int) $entry['updated_at']       : 0,
+            );
+        }
+    }
+
+    wp_localize_script('github-chat-widget-admin-script', 'GithubChatWidgetAdmin', array(
+        'usageData' => $usage_data,
+    ));
 }
 add_action('admin_enqueue_scripts', 'github_chat_widget_admin_assets');
+
+function github_chat_widget_fetch_models_catalog() {
+    $cached = get_transient('github_chat_widget_models_catalog');
+    if (is_array($cached)) {
+        return $cached;
+    }
+
+    $response = wp_remote_get('https://models.github.ai/catalog/models', array(
+        'timeout' => 10,
+        'headers' => array('Accept' => 'application/json'),
+    ));
+
+    if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
+        return array();
+    }
+
+    $decoded = json_decode((string) wp_remote_retrieve_body($response), true);
+    if (!is_array($decoded)) {
+        return array();
+    }
+
+    $models = array();
+    foreach ($decoded as $item) {
+        if (!isset($item['id'], $item['name'], $item['publisher'])) {
+            continue;
+        }
+        $output = isset($item['supported_output_modalities']) ? (array) $item['supported_output_modalities'] : array();
+        if (!in_array('text', $output, true)) {
+            continue;
+        }
+        $api_model = github_chat_widget_normalize_model_id($item['id']);
+        if ($api_model === '') {
+            continue;
+        }
+
+        $models[] = array(
+            'id'        => sanitize_text_field((string) $item['id']),
+            'api_model' => $api_model,
+            'name'      => sanitize_text_field((string) $item['name']),
+            'publisher' => sanitize_text_field((string) $item['publisher']),
+            'summary'   => isset($item['summary']) ? sanitize_text_field((string) $item['summary']) : '',
+        );
+    }
+
+    set_transient('github_chat_widget_models_catalog', $models, 12 * HOUR_IN_SECONDS);
+    return $models;
+}
 
 function github_chat_widget_get_admin_email_rows($limit = 100) {
     global $wpdb;
@@ -87,7 +163,38 @@ function github_chat_widget_admin_page() {
                         </tr>
                         <tr>
                             <th scope="row"><label for="github_chat_widget_model">Model</label></th>
-                            <td><input id="github_chat_widget_model" type="text" class="regular-text" name="github_chat_widget_settings[model]" value="<?php echo esc_attr($settings['model']); ?>" /></td>
+                            <td>
+                                <?php
+                                $catalog_models = github_chat_widget_fetch_models_catalog();
+                                $current_model = esc_attr(github_chat_widget_normalize_model_id($settings['model']));
+                                if (!empty($catalog_models)) :
+                                    $by_publisher = array();
+                                    $descriptions = array();
+                                    foreach ($catalog_models as $cm) {
+                                        $by_publisher[$cm['publisher']][] = $cm;
+                                        $descriptions[$cm['api_model']] = $cm['summary'];
+                                    }
+                                    ksort($by_publisher);
+                                ?>
+                                <select id="github_chat_widget_model" name="github_chat_widget_settings[model]" class="github-chat-widget-model-select">
+                                    <?php foreach ($by_publisher as $pub => $pub_models) : ?>
+                                    <optgroup label="<?php echo esc_attr($pub); ?>">
+                                        <?php foreach ($pub_models as $cm) : ?>
+                                        <option value="<?php echo esc_attr($cm['api_model']); ?>" <?php selected($current_model, $cm['api_model']); ?>><?php echo esc_html($cm['name']); ?></option>
+                                        <?php endforeach; ?>
+                                    </optgroup>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="github-chat-widget-model-desc" id="github_chat_widget_model_desc"></p>
+                                <div class="github-chat-widget-usage-indicator" id="github_chat_widget_usage_indicator"></div>
+                                <script>
+                                window.GithubChatWidgetModelDescriptions = <?php echo wp_json_encode($descriptions); ?>;
+                                </script>
+                                <?php else : ?>
+                                <input id="github_chat_widget_model" type="text" class="regular-text" name="github_chat_widget_settings[model]" value="<?php echo esc_attr($current_model); ?>" />
+                                <p class="description">Could not load model catalog. Enter model ID manually.</p>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <tr>
                             <th scope="row"><label for="github_chat_widget_base_url">Base URL</label></th>
