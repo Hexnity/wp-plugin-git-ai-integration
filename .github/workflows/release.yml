@@ -1,0 +1,49 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build production ZIP
+        env:
+          PLUGIN_SLUG: wp-plugin-git-ai-integration
+        run: |
+          set -euo pipefail
+
+          BUILD_ROOT="${RUNNER_TEMP}/build"
+          PACKAGE_ROOT="${BUILD_ROOT}/${PLUGIN_SLUG}"
+          ZIP_NAME="${PLUGIN_SLUG}-${GITHUB_REF_NAME}.zip"
+
+          rm -rf "${BUILD_ROOT}"
+          mkdir -p "${PACKAGE_ROOT}"
+
+          rsync -av ./ "${PACKAGE_ROOT}/" \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'node_modules/' \
+            --exclude '.gitignore' \
+            --exclude '.gitattributes' \
+            --exclude '.DS_Store' \
+            --exclude '*.zip'
+
+          cd "${BUILD_ROOT}"
+          zip -r "${GITHUB_WORKSPACE}/${ZIP_NAME}" "${PLUGIN_SLUG}"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: wp-plugin-git-ai-integration-${{ github.ref_name }}.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true
