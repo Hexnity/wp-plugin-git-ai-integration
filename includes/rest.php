@@ -25,14 +25,28 @@ add_action('rest_api_init', 'github_chat_widget_register_rest_routes');
 
 function github_chat_widget_validate_request_origin() {
     $origin = isset($_SERVER['HTTP_ORIGIN']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_ORIGIN'])) : '';
-    if ($origin === '') {
-        return true;
+    $referer = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
+
+    $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+    if (empty($site_host)) {
+        return false;
     }
 
-    $origin_host = wp_parse_url($origin, PHP_URL_HOST);
-    $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+    $origin_host = $origin !== '' ? wp_parse_url($origin, PHP_URL_HOST) : '';
+    $referer_host = $referer !== '' ? wp_parse_url($referer, PHP_URL_HOST) : '';
 
-    if (!empty($origin_host) && !empty($site_host) && strtolower((string) $origin_host) !== strtolower((string) $site_host)) {
+    // Public routes should only be called from this same site.
+    if ($origin_host === '' && $referer_host === '') {
+        return false;
+    }
+
+    $site_host = strtolower((string) $site_host);
+
+    if ($origin_host !== '' && strtolower((string) $origin_host) !== $site_host) {
+        return false;
+    }
+
+    if ($referer_host !== '' && strtolower((string) $referer_host) !== $site_host) {
         return false;
     }
 
