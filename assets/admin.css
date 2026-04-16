@@ -1,0 +1,80 @@
+.github-chat-widget-admin-wrap {
+  max-width: 1200px;
+}
+
+.github-chat-widget-admin-subtitle {
+  margin-top: 4px;
+  margin-bottom: 16px;
+  color: #475569;
+}
+
+.github-chat-widget-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.github-chat-widget-admin-card {
+  background: #ffffff;
+  border: 1px solid #dbe3ec;
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.github-chat-widget-admin-card h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.github-chat-widget-admin-card-full {
+  grid-column: 1 / -1;
+}
+
+.github-chat-widget-admin-card .form-table {
+  margin-top: 0;
+}
+
+.github-chat-widget-admin-card .form-table th {
+  width: 180px;
+  padding-top: 12px;
+}
+
+.github-chat-widget-admin-card .form-table td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.github-chat-widget-admin-card input.regular-text,
+.github-chat-widget-admin-card textarea.large-text,
+.github-chat-widget-admin-card select {
+  width: 100%;
+  max-width: 100%;
+}
+
+.github-chat-widget-admin-help {
+  margin-top: 16px;
+  background: #ffffff;
+  border: 1px solid #dbe3ec;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.github-chat-widget-admin-table-wrap {
+  overflow-x: auto;
+}
+
+.github-chat-widget-admin-json {
+  width: 100%;
+  min-width: 320px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+@media (max-width: 782px) {
+  .github-chat-widget-admin-card .form-table th,
+  .github-chat-widget-admin-card .form-table td {
+    display: block;
+    width: 100%;
+  }
+}
