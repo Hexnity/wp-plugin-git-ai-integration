@@ -1,38 +1,42 @@
 # Github Chat Widget
 
-Floating AI chat widget plugin for WordPress with customizable UI, route buttons, dynamic content grounding, and email-based cross-device chat history.
+Floating AI chat widget plugin for WordPress with customizable UI, persistent email sessions, dynamic website-content grounding, and action buttons.
+
+## Version
+
+Current plugin version: `1.3.7`
 
 ## Features
 
 - Floating frontend chat widget with launcher button.
 - Configurable placement: bottom-right, bottom-left, top-right, top-left.
-- Customizable panel size, offsets, colors, and launcher border.
-- Customizable texts: title, welcome text, thinking text, placeholder, send label.
-- Supports launcher icon or custom launcher image URL.
+- Customizable panel size, offsets, colors, font sizes, and launcher border.
+- Optional custom launcher image.
 - WordPress shortcode support: `[github_chat_widget]`.
 - Auto inject mode to display widget on all frontend pages.
-- REST API backend for AI chat completion requests.
-- API configuration from WP Admin: API key, model, base URL, temperature.
-- System prompt editor with strict JSON output support.
-- Optional UI action button in AI responses.
-- Route map support: map route keys to labels and URLs.
-- Link promotion: converts text links to clickable action button payloads.
-- Optional dynamic website context mode:
-- Selects relevant pages/posts from your site based on user intent.
-- Fetches real page/post content and feeds it into the model.
-- Uses route matching against the latest user message.
-- Origin validation for REST requests.
-- Basic IP rate limiting.
-- Email-first chat session flow:
-- User must submit email before starting chat.
-- Submitted emails are stored in database.
-- Chat history is stored as JSON by email.
-- Returning with same email on another device restores previous chat.
-- Admin tables for auditing captured emails and chat JSON history.
+- Model/API configuration from WP Admin (API key, model, endpoint, temperature).
+- Live model dropdown from GitHub Models catalog.
+- Usage/quota indicator in admin (based on response rate-limit headers).
+- Dynamic 2-step website grounding flow:
+- Step 1: Select relevant pages/posts from sitemap-style catalog using user message.
+- Step 2: Fetch full content of selected pages/posts and answer from that context.
+- Optional AI action button routing to configured URLs.
+- Chat history admin table with "View Chat" modal UX.
+- Email-first sessions with browser state persistence:
+- Email and recent messages stay available after refresh.
+- State resets only when user clicks "Change Email".
+
+## Security
+
+- REST origin validation with same-host checks for `Origin` and `Referer`.
+- Basic IP-based rate limiting for session/chat requests.
+- Strict sanitization for settings, model IDs, colors, clamp values, and custom CSS.
+- Request message normalization and length limits before provider calls.
+- Same-host URL validation for AI-driven navigation targets (mitigates open redirects).
 
 ## Database Tables
 
-On activation (or upgrade), the plugin creates:
+On activation or DB upgrade:
 
 - `wp_github_chat_widget_users`
 - Stores unique user emails and timestamps.
@@ -40,14 +44,14 @@ On activation (or upgrade), the plugin creates:
 - `wp_github_chat_widget_chat_history`
 - Stores latest chat history JSON per email, message count, and timestamps.
 
-Note: table prefix depends on your WordPress `$wpdb->prefix`.
+Note: table prefix depends on `$wpdb->prefix`.
 
 ## Installation
 
 1. Copy plugin folder into `wp-content/plugins/git-ai-chat-widget`.
-2. Activate **Github Chat Widget** from WordPress Admin.
-3. Open **Settings > Github Chat**.
-4. Add your API key and model endpoint settings.
+2. Activate **Github Chat Widget** in WordPress admin.
+3. Go to **Settings > Github Chat**.
+4. Configure API key/model/base URL.
 5. Save settings.
 
 ## Usage
@@ -60,7 +64,8 @@ Note: table prefix depends on your WordPress `$wpdb->prefix`.
 ```
 
 - On frontend, users must enter an email to start.
-- Chat history is restored automatically for that email.
+- After refresh, the same browser keeps email/session state.
+- Use **Change Email** to reset and start a new session identity.
 
 ## REST Endpoints
 
@@ -108,11 +113,7 @@ Includes:
 - Text configuration.
 - Layout and color controls.
 - Route and button controls.
-- Dynamic system info toggle.
+- Dynamic website content controls.
 - System prompt editor.
-- Submitted Emails table.
-- Chat History JSON table.
-
-## Version
-
-Current plugin version: `1.3.0`
+- Submitted emails table.
+- Chat history table with popup conversation viewer.

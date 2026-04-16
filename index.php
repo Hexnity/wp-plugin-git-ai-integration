@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Github Chat Widget
  * Plugin URI: https://shashinthalk.cc
- * Description: Floating AI chat widget with UI action buttons and a WordPress REST endpoint.
- * Version: 1.3.6
+ * Description: Floating AI chat widget with persistent email sessions, grounded website answers, and secure WordPress REST endpoints.
+ * Version: 1.3.7
  * Author: Nishan Shashintha
  * License: GPL2+
  */
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('GITHUB_CHAT_WIDGET_VERSION', '1.3.2');
+define('GITHUB_CHAT_WIDGET_VERSION', '1.3.7');
 define('GITHUB_CHAT_WIDGET_DB_VERSION', '1.0.0');
 define('GITHUB_CHAT_WIDGET_SLUG', 'github-chat-widget');
 define('GITHUB_CHAT_WIDGET_URL', plugin_dir_url(__FILE__));

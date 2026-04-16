@@ -54,8 +54,25 @@
   }
 
   function isUrlTarget(value) {
-    var target = String(value || '').trim().toLowerCase();
-    return target.indexOf('/') === 0 || target.indexOf('http://') === 0 || target.indexOf('https://') === 0;
+    var target = String(value || '').trim();
+    if (!target) {
+      return false;
+    }
+
+    if (target.indexOf('/') === 0) {
+      return true;
+    }
+
+    if (target.indexOf('http://') === 0 || target.indexOf('https://') === 0) {
+      try {
+        var parsed = new URL(target, window.location.origin);
+        return parsed.host === window.location.host;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    return false;
   }
 
   function loadStoredState() {
@@ -79,8 +96,18 @@
   function saveStoredState(state) {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        isOpen: !!state.isOpen
+        isOpen: !!state.isOpen,
+        email: typeof state.email === 'string' ? state.email : '',
+        messages: normalizeStoredMessages(state.messages)
       }));
+    } catch (err) {
+      return;
+    }
+  }
+
+  function clearStoredState() {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
     } catch (err) {
       return;
     }
@@ -328,8 +355,8 @@
     var state = {
       isOpen: !!(storedState && storedState.isOpen),
       isLoading: false,
-      email: '',
-      messages: []
+      email: storedState && typeof storedState.email === 'string' ? storedState.email : '',
+      messages: normalizeStoredMessages(storedState && storedState.messages ? storedState.messages : [])
     };
 
     root.innerHTML = '';
@@ -440,6 +467,8 @@
         state.messages = [];
         renderMessages();
       }
+
+      saveStoredState(state);
     }
 
     function togglePanel(open) {
@@ -483,6 +512,7 @@
       state.messages = [];
       emailInput.value = '';
       emailError.textContent = '';
+      clearStoredState();
       setSessionReady(false);
       emailInput.focus();
     });
@@ -585,7 +615,13 @@
       }
     });
 
-    setSessionReady(false);
+    if (state.email) {
+      emailInput.value = state.email;
+      renderMessages();
+      setSessionReady(true);
+    } else {
+      setSessionReady(false);
+    }
     togglePanel(state.isOpen);
   }
 
