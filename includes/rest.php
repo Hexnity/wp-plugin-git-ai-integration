@@ -23,16 +23,50 @@ function github_chat_widget_register_rest_routes() {
 }
 add_action('rest_api_init', 'github_chat_widget_register_rest_routes');
 
+function github_chat_widget_validate_rest_nonce() {
+    $nonce = '';
+
+    if (isset($_SERVER['HTTP_X_WP_NONCE'])) {
+        $nonce = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE']));
+    } elseif (isset($_REQUEST['_wpnonce'])) {
+        $nonce = sanitize_text_field(wp_unslash($_REQUEST['_wpnonce']));
+    }
+
+    if ($nonce === '') {
+        return false;
+    }
+
+    return (bool) wp_verify_nonce($nonce, 'wp_rest');
+}
+
 function github_chat_widget_validate_request_origin() {
-    $origin = isset($_SERVER['HTTP_ORIGIN']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_ORIGIN'])) : '';
-    if ($origin === '') {
+    if (github_chat_widget_validate_rest_nonce()) {
         return true;
     }
 
-    $origin_host = wp_parse_url($origin, PHP_URL_HOST);
-    $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+    $origin = isset($_SERVER['HTTP_ORIGIN']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_ORIGIN'])) : '';
+    $referer = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
 
-    if (!empty($origin_host) && !empty($site_host) && strtolower((string) $origin_host) !== strtolower((string) $site_host)) {
+    $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+    if (empty($site_host)) {
+        return false;
+    }
+
+    $origin_host = $origin !== '' ? wp_parse_url($origin, PHP_URL_HOST) : '';
+    $referer_host = $referer !== '' ? wp_parse_url($referer, PHP_URL_HOST) : '';
+
+    // Public routes should only be called from this same site.
+    if ($origin_host === '' && $referer_host === '') {
+        return false;
+    }
+
+    $site_host = strtolower((string) $site_host);
+
+    if ($origin_host !== '' && strtolower((string) $origin_host) !== $site_host) {
+        return false;
+    }
+
+    if ($referer_host !== '' && strtolower((string) $referer_host) !== $site_host) {
         return false;
     }
 
@@ -116,7 +150,33 @@ function github_chat_widget_normalize_messages($messages) {
 }
 
 function github_chat_widget_send_chat_completion($settings, $payload) {
-    $base_url = trim((string) $settings['base_url']);
+    $defaults = github_chat_widget_defaults();
+    $base_url = github_chat_widget_sanitize_base_url(
+        isset($settings['base_url']) ? $settings['base_url'] : '',
+        $defaults['base_url']
+    );
+
+    if (!github_chat_widget_is_allowed_service_base_url($base_url)) {
+        return array(
+            'ok' => false,
+            'status' => 500,
+            'body' => '',
+            'error' => 'Configured AI endpoint is not allowed.',
+        );
+    }
+    $model_id = isset($payload['model']) ? github_chat_widget_normalize_model_id($payload['model']) : '';
+
+    if ($model_id === '') {
+        $model_id = github_chat_widget_normalize_model_id(isset($settings['model']) ? $settings['model'] : '');
+    }
+
+    if ($model_id === '') {
+        $model_id = github_chat_widget_normalize_model_id($defaults['model']);
+    }
+
+    if ($model_id !== '') {
+        $payload['model'] = $model_id;
+    }
 
     $request_args = array(
         'headers' => array(
@@ -139,6 +199,7 @@ function github_chat_widget_send_chat_completion($settings, $payload) {
 
     $status_code = (int) wp_remote_retrieve_response_code($response);
     $body = (string) wp_remote_retrieve_body($response);
+    $final_response = $response;
 
     if ($status_code === 404) {
         $alt_base_url = github_chat_widget_alternate_base_url($base_url);
@@ -149,9 +210,14 @@ function github_chat_widget_send_chat_completion($settings, $payload) {
                 if ($retry_status >= 200 && $retry_status < 300) {
                     $status_code = $retry_status;
                     $body = (string) wp_remote_retrieve_body($retry_response);
+                    $final_response = $retry_response;
                 }
             }
         }
+    }
+
+    if ($model_id !== '' && $status_code >= 200 && $status_code < 300) {
+        github_chat_widget_persist_usage_data($model_id, $final_response);
     }
 
     if ($status_code < 200 || $status_code >= 300) {
@@ -205,6 +271,10 @@ function github_chat_widget_rest_handler(WP_REST_Request $request) {
 
     $settings = github_chat_widget_get_settings();
 
+    if (!github_chat_widget_external_services_consent_enabled($settings)) {
+        return new WP_REST_Response(array('error' => 'External service consent is disabled by site admin.'), 403);
+    }
+
     if (empty($settings['api_key'])) {
         return new WP_REST_Response(array('error' => 'API key is not configured in plugin settings.'), 500);
     }
@@ -244,7 +314,7 @@ function github_chat_widget_rest_handler(WP_REST_Request $request) {
     if ($enable_ui_buttons) {
         if ($enable_dynamic_system_info) {
             $label_hint = $default_button_label !== '' ? '"' . $default_button_label . '"' : 'a descriptive label';
-            $system_prompt .= "\n\nWhen dynamic website content context is provided, treat it as authoritative source data. If relevant facts are present, summarize 1-3 concrete points from that context in main_answer before suggesting navigation. Only say information is missing when the context truly does not contain the requested detail.";
+            $system_prompt .= "\n\nWhen website content context is provided in a subsequent system message, treat it as the ground truth. Extract specific facts from it and include them in main_answer. Never say information is missing if the context contains it. Keep main_answer concise (under 100 words) but factual.";
             $system_prompt .= "\nWhen a page or post from the provided website content context is directly relevant to the user's question, set ui_action.show_button=true, set ui_action.target_url to the URL of that page or post from the context, and set ui_action.button_label to " . $label_hint . ". Do not invent URLs; only use URLs present in the context.";
         } elseif ($section_targets !== '') {
             $system_prompt .= "\n\nAllowed sections/pages: " . $section_targets . ".";
@@ -309,7 +379,9 @@ function github_chat_widget_rest_handler(WP_REST_Request $request) {
     if ($dynamic_context !== '') {
         $final_messages[] = array(
             'role' => 'system',
-            'content' => "Dynamic website content context:\n\n" . $dynamic_context . "\n\nUse this context to answer with concrete facts when relevant. If previous assistant replies said information is missing but this context contains it, trust this context and answer from it.",
+            'content' => "IMPORTANT: The following is authoritative content extracted directly from this website's pages. You MUST use this content to answer the user's question. Do NOT say you lack information if the answer is present here. Quote or paraphrase specific facts from this content in your main_answer.\n\n"
+                . $dynamic_context
+                . "\n\nEnd of website content. Base your answer on the above.",
         );
     }
 

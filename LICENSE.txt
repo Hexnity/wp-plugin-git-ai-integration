@@ -1,0 +1,11 @@
+GitHub Chat Widget License
+==========================
+
+This plugin is licensed under the GNU General Public License, version 2 or any later version (GPLv2 or later).
+
+You may copy, distribute, and/or modify this plugin under the terms of the GNU GPL.
+
+GPL-2.0 text:
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+SPDX identifier: GPL-2.0-or-later

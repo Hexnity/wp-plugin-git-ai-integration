@@ -6,8 +6,8 @@ if (!defined('ABSPATH')) {
 
 function github_chat_widget_admin_menu() {
     add_options_page(
-        'Github Chat Settings',
-        'Github Chat',
+        'Site AI Chat Settings',
+        'Site AI Chat',
         'manage_options',
         'github-chat-widget',
         'github_chat_widget_admin_page'
@@ -26,8 +26,89 @@ function github_chat_widget_admin_assets($hook) {
         array(),
         GITHUB_CHAT_WIDGET_VERSION
     );
+
+    wp_enqueue_script(
+        'github-chat-widget-admin-script',
+        GITHUB_CHAT_WIDGET_URL . 'assets/admin.js',
+        array(),
+        GITHUB_CHAT_WIDGET_VERSION,
+        true
+    );
+
+    $raw_usage = get_option('gh_models_usage_data', array());
+    $usage_data = array();
+    if (is_array($raw_usage)) {
+        foreach ($raw_usage as $model_id => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $usage_data[sanitize_text_field((string) $model_id)] = array(
+                'remaining'        => isset($entry['remaining'])        ? (int) $entry['remaining']        : null,
+                'limit'            => isset($entry['limit'])            ? (int) $entry['limit']            : null,
+                'reset'            => isset($entry['reset'])            ? (int) $entry['reset']            : 0,
+                'remaining_tokens' => isset($entry['remaining_tokens']) ? (int) $entry['remaining_tokens'] : null,
+                'updated_at'       => isset($entry['updated_at'])       ? (int) $entry['updated_at']       : 0,
+            );
+        }
+    }
+
+    wp_localize_script('github-chat-widget-admin-script', 'GithubChatWidgetAdmin', array(
+        'usageData' => $usage_data,
+    ));
 }
 add_action('admin_enqueue_scripts', 'github_chat_widget_admin_assets');
+
+function github_chat_widget_fetch_models_catalog() {
+    $settings = github_chat_widget_get_settings();
+    if (!github_chat_widget_external_services_consent_enabled($settings)) {
+        return array();
+    }
+
+    $cached = get_transient('github_chat_widget_models_catalog');
+    if (is_array($cached)) {
+        return $cached;
+    }
+
+    $response = wp_remote_get('https://models.github.ai/catalog/models', array(
+        'timeout' => 10,
+        'headers' => array('Accept' => 'application/json'),
+    ));
+
+    if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
+        return array();
+    }
+
+    $decoded = json_decode((string) wp_remote_retrieve_body($response), true);
+    if (!is_array($decoded)) {
+        return array();
+    }
+
+    $models = array();
+    foreach ($decoded as $item) {
+        if (!isset($item['id'], $item['name'], $item['publisher'])) {
+            continue;
+        }
+        $output = isset($item['supported_output_modalities']) ? (array) $item['supported_output_modalities'] : array();
+        if (!in_array('text', $output, true)) {
+            continue;
+        }
+        $api_model = github_chat_widget_normalize_model_id($item['id']);
+        if ($api_model === '') {
+            continue;
+        }
+
+        $models[] = array(
+            'id'        => sanitize_text_field((string) $item['id']),
+            'api_model' => $api_model,
+            'name'      => sanitize_text_field((string) $item['name']),
+            'publisher' => sanitize_text_field((string) $item['publisher']),
+            'summary'   => isset($item['summary']) ? sanitize_text_field((string) $item['summary']) : '',
+        );
+    }
+
+    set_transient('github_chat_widget_models_catalog', $models, 12 * HOUR_IN_SECONDS);
+    return $models;
+}
 
 function github_chat_widget_get_admin_email_rows($limit = 100) {
     global $wpdb;
@@ -35,8 +116,9 @@ function github_chat_widget_get_admin_email_rows($limit = 100) {
     $limit = max(1, min(500, (int) $limit));
     $table = github_chat_widget_users_table_name();
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name is built from $wpdb->prefix and a literal string; result is admin-only and does not require caching.
     return $wpdb->get_results(
-        $wpdb->prepare("SELECT id, email, created_at, last_seen_at FROM {$table} ORDER BY last_seen_at DESC LIMIT %d", $limit),
+        $wpdb->prepare("SELECT id, email, created_at, last_seen_at FROM {$table} ORDER BY last_seen_at DESC LIMIT %d", $limit), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         ARRAY_A
     );
 }
@@ -47,8 +129,9 @@ function github_chat_widget_get_admin_history_rows($limit = 100) {
     $limit = max(1, min(500, (int) $limit));
     $table = github_chat_widget_history_table_name();
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name is built from $wpdb->prefix and a literal string; result is admin-only and does not require caching.
     return $wpdb->get_results(
-        $wpdb->prepare("SELECT id, email, message_count, messages_json, updated_at FROM {$table} ORDER BY updated_at DESC LIMIT %d", $limit),
+        $wpdb->prepare("SELECT id, email, message_count, messages_json, updated_at FROM {$table} ORDER BY updated_at DESC LIMIT %d", $limit), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         ARRAY_A
     );
 }
@@ -61,13 +144,30 @@ function github_chat_widget_admin_page() {
     $settings = github_chat_widget_get_settings();
     $email_rows = github_chat_widget_get_admin_email_rows(100);
     $history_rows = github_chat_widget_get_admin_history_rows(100);
+    $css_class_reference = ".github-chat-widget-root\n.github-chat-widget-panel\n.github-chat-widget-header\n.github-chat-widget-title\n.github-chat-widget-change-email\n.github-chat-widget-email-gate\n.github-chat-widget-email-title\n.github-chat-widget-email-form\n.github-chat-widget-email-input\n.github-chat-widget-email-submit\n.github-chat-widget-email-error\n.github-chat-widget-messages\n.github-chat-widget-row.is-user\n.github-chat-widget-row.is-ai\n.github-chat-widget-bubble\n.github-chat-widget-actions\n.github-chat-widget-nav-button\n.github-chat-widget-form\n.github-chat-widget-input\n.github-chat-widget-send\n.github-chat-widget-launcher";
     ?>
     <div class="wrap github-chat-widget-admin-wrap">
-        <h1>Github Chat Settings</h1>
+        <h1>Site AI Chat Settings</h1>
         <p class="github-chat-widget-admin-subtitle">Configure API, appearance, behavior, and route actions from one place.</p>
 
         <form method="post" action="options.php">
             <?php settings_fields('github_chat_widget_group'); ?>
+
+            <div class="github-chat-widget-consent-banner <?php echo github_chat_widget_external_services_consent_enabled($settings) ? 'is-enabled' : 'is-disabled'; ?>">
+                <div class="github-chat-widget-consent-banner-icon">
+                    <?php echo github_chat_widget_external_services_consent_enabled($settings) ? '&#10003;' : '&#9888;'; ?>
+                </div>
+                <div class="github-chat-widget-consent-banner-body">
+                    <strong>External Service Consent</strong>
+                    <p>This plugin sends chat requests and model metadata to external AI services (GitHub Models / Azure Inference API). This is required for the chat widget to function. No chat data is stored by the external service beyond what is needed to fulfill each request.</p>
+                    <p><strong>Services contacted:</strong> <code>models.inference.ai.azure.com</code> (chat completions) and <code>models.github.ai</code> (model catalog). See <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener noreferrer">GitHub Privacy Statement</a> and <a href="https://docs.github.com/en/site-policy/github-terms/github-terms-of-service" target="_blank" rel="noopener noreferrer">Terms of Service</a>.</p>
+                    <label class="github-chat-widget-consent-label">
+                        <input type="checkbox" name="github_chat_widget_settings[external_service_consent]" value="1" <?php checked(!empty($settings['external_service_consent'])); ?> />
+                        I have read the above and consent to sending chat requests and model metadata requests to external AI services.
+                    </label>
+                </div>
+                <?php submit_button('Save Consent Setting', 'secondary', 'submit_consent', false); ?>
+            </div>
 
             <div class="github-chat-widget-admin-grid">
                 <section class="github-chat-widget-admin-card">
@@ -86,11 +186,45 @@ function github_chat_widget_admin_page() {
                         </tr>
                         <tr>
                             <th scope="row"><label for="github_chat_widget_model">Model</label></th>
-                            <td><input id="github_chat_widget_model" type="text" class="regular-text" name="github_chat_widget_settings[model]" value="<?php echo esc_attr($settings['model']); ?>" /></td>
+                            <td>
+                                <?php
+                                $catalog_models = github_chat_widget_fetch_models_catalog();
+                                $current_model = esc_attr(github_chat_widget_normalize_model_id($settings['model']));
+                                if (github_chat_widget_external_services_consent_enabled($settings) && !empty($catalog_models)) :
+                                    $by_publisher = array();
+                                    $descriptions = array();
+                                    foreach ($catalog_models as $cm) {
+                                        $by_publisher[$cm['publisher']][] = $cm;
+                                        $descriptions[$cm['api_model']] = $cm['summary'];
+                                    }
+                                    ksort($by_publisher);
+                                ?>
+                                <select id="github_chat_widget_model" name="github_chat_widget_settings[model]" class="github-chat-widget-model-select">
+                                    <?php foreach ($by_publisher as $pub => $pub_models) : ?>
+                                    <optgroup label="<?php echo esc_attr($pub); ?>">
+                                        <?php foreach ($pub_models as $cm) : ?>
+                                        <option value="<?php echo esc_attr($cm['api_model']); ?>" <?php selected($current_model, $cm['api_model']); ?>><?php echo esc_html($cm['name']); ?></option>
+                                        <?php endforeach; ?>
+                                    </optgroup>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="github-chat-widget-model-desc" id="github_chat_widget_model_desc"></p>
+                                <div class="github-chat-widget-usage-indicator" id="github_chat_widget_usage_indicator"></div>
+                                <script>
+                                window.GithubChatWidgetModelDescriptions = <?php echo wp_json_encode($descriptions); ?>;
+                                </script>
+                                <?php else : ?>
+                                <input id="github_chat_widget_model" type="text" class="regular-text" name="github_chat_widget_settings[model]" value="<?php echo esc_attr($current_model); ?>" />
+                                <p class="description"><?php echo github_chat_widget_external_services_consent_enabled($settings) ? 'Could not load model catalog. Enter model ID manually.' : 'Enable external service consent to load the model catalog, or enter model ID manually.'; ?></p>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <tr>
                             <th scope="row"><label for="github_chat_widget_base_url">Base URL</label></th>
-                            <td><input id="github_chat_widget_base_url" type="url" class="regular-text code" name="github_chat_widget_settings[base_url]" value="<?php echo esc_attr($settings['base_url']); ?>" /></td>
+                            <td>
+                                <input id="github_chat_widget_base_url" type="url" class="regular-text code" name="github_chat_widget_settings[base_url]" value="<?php echo esc_attr($settings['base_url']); ?>" />
+                                <p class="description">Only the documented HTTPS chat completion endpoint is permitted for security and WordPress.org compliance.</p>
+                            </td>
                         </tr>
                         <tr>
                             <th scope="row"><label for="github_chat_widget_temperature">Temperature</label></th>
@@ -183,6 +317,25 @@ function github_chat_widget_admin_page() {
                             <td><input id="github_chat_widget_response_text_color" type="color" name="github_chat_widget_settings[response_text_color]" value="<?php echo esc_attr($settings['response_text_color']); ?>" /></td>
                         </tr>
                         <tr>
+                            <th scope="row"><label for="github_chat_widget_title_font_size">Title Font Size</label></th>
+                            <td>
+                                <input id="github_chat_widget_title_font_size" type="text" class="regular-text code" name="github_chat_widget_settings[title_font_size]" value="<?php echo esc_attr($settings['title_font_size']); ?>" />
+                                <p class="description">Use a CSS clamp() value. Example: clamp(0.95rem, 0.9rem + 0.2vw, 1.05rem)</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="github_chat_widget_body_font_size">Body Font Size</label></th>
+                            <td><input id="github_chat_widget_body_font_size" type="text" class="regular-text code" name="github_chat_widget_settings[body_font_size]" value="<?php echo esc_attr($settings['body_font_size']); ?>" /></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="github_chat_widget_input_font_size">Input Font Size</label></th>
+                            <td><input id="github_chat_widget_input_font_size" type="text" class="regular-text code" name="github_chat_widget_settings[input_font_size]" value="<?php echo esc_attr($settings['input_font_size']); ?>" /></td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="github_chat_widget_button_font_size">Button Font Size</label></th>
+                            <td><input id="github_chat_widget_button_font_size" type="text" class="regular-text code" name="github_chat_widget_settings[button_font_size]" value="<?php echo esc_attr($settings['button_font_size']); ?>" /></td>
+                        </tr>
+                        <tr>
                             <th scope="row"><label for="github_chat_widget_launcher_border_color">Launcher Border Color</label></th>
                             <td><input id="github_chat_widget_launcher_border_color" type="color" name="github_chat_widget_settings[launcher_border_color]" value="<?php echo esc_attr($settings['launcher_border_color']); ?>" /></td>
                         </tr>
@@ -250,6 +403,14 @@ function github_chat_widget_admin_page() {
                     <textarea id="github_chat_widget_system_prompt" class="large-text code" rows="14" name="github_chat_widget_settings[system_prompt]"><?php echo esc_textarea($settings['system_prompt']); ?></textarea>
                     <p class="description">Use strict JSON output format to preserve UI actions.</p>
                 </section>
+
+                <section class="github-chat-widget-admin-card github-chat-widget-admin-card-full">
+                    <h2>Advanced CSS</h2>
+                    <textarea id="github_chat_widget_advanced_css" class="large-text code github-chat-widget-admin-code-area" rows="12" name="github_chat_widget_settings[advanced_css]"><?php echo esc_textarea($settings['advanced_css']); ?></textarea>
+                    <p class="description">Custom CSS is loaded on the frontend widget after the default stylesheet. Target the classes below.</p>
+                    <label class="github-chat-widget-admin-label" for="github_chat_widget_css_classes">Available CSS Classes</label>
+                    <textarea id="github_chat_widget_css_classes" class="large-text code github-chat-widget-admin-code-area" rows="12" readonly><?php echo esc_textarea($css_class_reference); ?></textarea>
+                </section>
             </div>
 
             <?php submit_button('Save Settings'); ?>
@@ -259,6 +420,7 @@ function github_chat_widget_admin_page() {
             <h2>Usage</h2>
             <p>Shortcode: <code>[github_chat_widget]</code> when Auto Inject is disabled.</p>
             <p>Route keys should match likely user intents, such as <code>contact</code> or <code>projects</code>.</p>
+            <p>Advanced CSS is intended for frontend widget styling, including the email input, chat input, send button, and navigation button states.</p>
         </div>
 
         <div class="github-chat-widget-admin-help">
@@ -294,7 +456,7 @@ function github_chat_widget_admin_page() {
         </div>
 
         <div class="github-chat-widget-admin-help">
-            <h2>Chat History JSON</h2>
+            <h2>Chat History</h2>
             <div class="github-chat-widget-admin-table-wrap">
                 <table class="widefat striped">
                     <thead>
@@ -303,7 +465,7 @@ function github_chat_widget_admin_page() {
                             <th>Email</th>
                             <th>Messages</th>
                             <th>Updated</th>
-                            <th>JSON</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -315,7 +477,12 @@ function github_chat_widget_admin_page() {
                                     <td><?php echo esc_html((string) $row['message_count']); ?></td>
                                     <td><?php echo esc_html((string) $row['updated_at']); ?></td>
                                     <td>
-                                        <textarea class="github-chat-widget-admin-json" readonly rows="5"><?php echo esc_textarea((string) $row['messages_json']); ?></textarea>
+                                        <button
+                                            type="button"
+                                            class="button gcw-view-history-btn"
+                                            data-email="<?php echo esc_attr((string) $row['email']); ?>"
+                                            data-messages="<?php echo esc_attr((string) $row['messages_json']); ?>"
+                                        >View Chat</button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -326,6 +493,17 @@ function github_chat_widget_admin_page() {
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <div id="gcw-history-modal" class="gcw-history-modal" aria-modal="true" role="dialog" aria-label="Chat History" style="display:none;">
+            <div class="gcw-history-modal-backdrop"></div>
+            <div class="gcw-history-modal-box">
+                <div class="gcw-history-modal-header">
+                    <span id="gcw-history-modal-title">Chat with <strong></strong></span>
+                    <button type="button" class="gcw-history-modal-close" aria-label="Close">&times;</button>
+                </div>
+                <div id="gcw-history-modal-messages" class="gcw-history-modal-messages"></div>
             </div>
         </div>
     </div>

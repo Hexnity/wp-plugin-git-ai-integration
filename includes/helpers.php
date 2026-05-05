@@ -30,21 +30,39 @@ function github_chat_widget_default_system_prompt() {
 }
 
 function github_chat_widget_dynamic_selector_system_prompt() {
-    return "You select relevant WordPress pages/posts for a user request. "
-        . "Use only the provided catalog and return strict JSON only.\n"
+    return "You are a page selector. Given a user message and a catalog of WordPress pages/posts, return the IDs of the most relevant pages that contain information needed to answer the user's message.\n"
+        . "Return ONLY a raw JSON object. No explanation, no markdown, no code blocks.\n"
         . "Output format:\n"
-        . "{\n"
-        . "  \"matches\": [\n"
-        . "    {\"id\": 123, \"type\": \"page\"},\n"
-        . "    {\"id\": 456, \"type\": \"post\"}\n"
-        . "  ]\n"
-        . "}\n"
-        . "Rules: include max 5 items, type must be page or post, and IDs must exist in the catalog. Use name, slug, and content_preview to match intent. Prefer exact profile/about/privacy intent matches.";
+        . "{\"matches\": [{\"id\": 123, \"type\": \"page\"}, {\"id\": 456, \"type\": \"post\"}]}\n"
+        . "Rules:\n"
+        . "- Include max 5 items.\n"
+        . "- type must be \"page\" or \"post\".\n"
+        . "- IDs must exist in the provided catalog.\n"
+        . "- Use name, slug, and content_preview to determine relevance.\n"
+        . "- If the user asks about a person, biography, portfolio, skills, projects, or about the site owner, prefer pages whose name or slug contains 'about', 'home', 'portfolio', 'profile', 'bio', or whose content_preview mentions the person's name.\n"
+        . "- When uncertain, include more pages rather than fewer.\n"
+        . "- If no page is relevant, return {\"matches\": []}.";
+}
+
+function github_chat_widget_normalize_model_id($value) {
+    $value = trim(sanitize_text_field((string) $value));
+
+    if ($value === '') {
+        return '';
+    }
+
+    if (strpos($value, '/') !== false) {
+        $parts = explode('/', $value);
+        $value = end($parts);
+    }
+
+    return trim((string) $value);
 }
 
 function github_chat_widget_defaults() {
     return array(
         'chat_title' => 'Github Chat',
+        'external_service_consent' => '',
         'api_key' => '',
         'model' => 'gpt-4o-mini',
         'base_url' => 'https://models.inference.ai.azure.com/chat/completions',
@@ -68,13 +86,60 @@ function github_chat_widget_defaults() {
         'accent_color' => '#10b981',
         'request_text_color' => '#ffffff',
         'response_text_color' => '#d1d5db',
+        'title_font_size' => 'clamp(0.95rem, 0.9rem + 0.2vw, 1.05rem)',
+        'body_font_size' => 'clamp(0.875rem, 0.84rem + 0.15vw, 0.95rem)',
+        'input_font_size' => 'clamp(0.875rem, 0.84rem + 0.15vw, 1rem)',
+        'button_font_size' => 'clamp(0.75rem, 0.72rem + 0.15vw, 0.875rem)',
         'enable_ui_buttons' => '1',
         'enable_dynamic_system_info' => '',
         'section_targets' => 'experience,projects,skills,contact',
         'default_button_label' => 'Open Section',
         'button_routes' => "contact|Contact|/contact\nprojects|View Projects|/projects\nexperience|Experience|/experience",
         'system_prompt' => github_chat_widget_default_system_prompt(),
+        'advanced_css' => '',
     );
+}
+
+function github_chat_widget_external_services_consent_enabled($settings = null) {
+    if (!is_array($settings)) {
+        $settings = github_chat_widget_get_settings();
+    }
+
+    return !empty($settings['external_service_consent']);
+}
+
+function github_chat_widget_allowed_service_hosts() {
+    return array(
+        'models.inference.ai.azure.com',
+    );
+}
+
+function github_chat_widget_is_allowed_service_base_url($url) {
+    $url = trim((string) $url);
+    if ($url === '') {
+        return false;
+    }
+
+    $parts = wp_parse_url($url);
+    if (!is_array($parts) || empty($parts['host']) || empty($parts['scheme']) || empty($parts['path'])) {
+        return false;
+    }
+
+    if (strtolower((string) $parts['scheme']) !== 'https') {
+        return false;
+    }
+
+    if (!empty($parts['query']) || !empty($parts['fragment'])) {
+        return false;
+    }
+
+    $host = strtolower((string) $parts['host']);
+    if (!in_array($host, github_chat_widget_allowed_service_hosts(), true)) {
+        return false;
+    }
+
+    $path = rtrim((string) $parts['path'], '/');
+    return in_array($path, array('/chat/completions', '/v1/chat/completions'), true);
 }
 
 function github_chat_widget_users_table_name() {
@@ -107,12 +172,13 @@ function github_chat_widget_find_or_create_email_user($email) {
     $users_table = github_chat_widget_users_table_name();
     $now = current_time('mysql');
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name is built from $wpdb->prefix and a literal string.
     $existing_id = (int) $wpdb->get_var(
-        $wpdb->prepare("SELECT id FROM {$users_table} WHERE email = %s", $safe_email)
+        $wpdb->prepare("SELECT id FROM {$users_table} WHERE email = %s", $safe_email) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     );
 
     if ($existing_id > 0) {
-        $wpdb->update(
+        $wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $users_table,
             array(
                 'updated_at' => $now,
@@ -126,7 +192,7 @@ function github_chat_widget_find_or_create_email_user($email) {
         return $existing_id;
     }
 
-    $inserted = $wpdb->insert(
+    $inserted = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $users_table,
         array(
             'email' => $safe_email,
@@ -223,8 +289,9 @@ function github_chat_widget_get_chat_history_by_email($email) {
     }
 
     $history_table = github_chat_widget_history_table_name();
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name is built from $wpdb->prefix and a literal string.
     $row = $wpdb->get_row(
-        $wpdb->prepare("SELECT messages_json FROM {$history_table} WHERE email = %s", $safe_email),
+        $wpdb->prepare("SELECT messages_json FROM {$history_table} WHERE email = %s", $safe_email), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         ARRAY_A
     );
 
@@ -257,8 +324,9 @@ function github_chat_widget_save_chat_history($email, $messages) {
     $history_table = github_chat_widget_history_table_name();
     $now = current_time('mysql');
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name is built from $wpdb->prefix and a literal string.
     $existing_id = (int) $wpdb->get_var(
-        $wpdb->prepare("SELECT id FROM {$history_table} WHERE email = %s", $safe_email)
+        $wpdb->prepare("SELECT id FROM {$history_table} WHERE email = %s", $safe_email) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     );
 
     $data = array(
@@ -270,7 +338,7 @@ function github_chat_widget_save_chat_history($email, $messages) {
     );
 
     if ($existing_id > 0) {
-        $updated = $wpdb->update(
+        $updated = $wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $history_table,
             $data,
             array('id' => $existing_id),
@@ -283,13 +351,54 @@ function github_chat_widget_save_chat_history($email, $messages) {
 
     $data['created_at'] = $now;
 
-    $inserted = $wpdb->insert(
+    $inserted = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $history_table,
         $data,
         array('%d', '%s', '%s', '%d', '%s', '%s')
     );
 
     return (bool) $inserted;
+}
+
+function github_chat_widget_persist_usage_data($model_id, $response) {
+    $model_id = github_chat_widget_normalize_model_id($model_id);
+    if ($model_id === '' || is_wp_error($response)) {
+        return;
+    }
+
+    $remaining = sanitize_text_field((string) wp_remote_retrieve_header($response, 'x-ratelimit-remaining-requests'));
+    $limit     = sanitize_text_field((string) wp_remote_retrieve_header($response, 'x-ratelimit-limit-requests'));
+    $reset     = sanitize_text_field((string) wp_remote_retrieve_header($response, 'x-ratelimit-reset'));
+    $rem_tok   = sanitize_text_field((string) wp_remote_retrieve_header($response, 'x-ratelimit-remaining-tokens'));
+
+    if ($remaining === '' && $limit === '') {
+        return;
+    }
+
+    $usage = get_option('gh_models_usage_data', array());
+    if (!is_array($usage)) {
+        $usage = array();
+    }
+
+    $reset_ts = 0;
+    if ($reset !== '') {
+        if (is_numeric($reset)) {
+            $reset_ts = (int) $reset;
+        } else {
+            $parsed = strtotime($reset);
+            $reset_ts = ($parsed !== false) ? (int) $parsed : 0;
+        }
+    }
+
+    $usage[$model_id] = array(
+        'remaining'          => ($remaining !== '') ? (int) $remaining : null,
+        'limit'              => ($limit !== '')     ? (int) $limit     : null,
+        'reset'              => $reset_ts,
+        'remaining_tokens'   => ($rem_tok !== '')   ? (int) $rem_tok   : null,
+        'updated_at'         => time(),
+    );
+
+    update_option('gh_models_usage_data', $usage, false);
 }
 
 function github_chat_widget_sanitize_hex_color($value, $fallback) {
@@ -314,6 +423,34 @@ function github_chat_widget_sanitize_position($value) {
     return $value;
 }
 
+function github_chat_widget_is_allowed_public_url($url) {
+    $url = trim((string) $url);
+    if ($url === '') {
+        return false;
+    }
+
+    if (strpos($url, '/') === 0 && strpos($url, '//') !== 0) {
+        return true;
+    }
+
+    $parts = wp_parse_url($url);
+    if (!is_array($parts) || empty($parts['host'])) {
+        return false;
+    }
+
+    $scheme = isset($parts['scheme']) ? strtolower((string) $parts['scheme']) : '';
+    if ($scheme !== 'http' && $scheme !== 'https') {
+        return false;
+    }
+
+    $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+    if (empty($site_host)) {
+        return false;
+    }
+
+    return strtolower((string) $parts['host']) === strtolower((string) $site_host);
+}
+
 function github_chat_widget_sanitize_base_url($value, $fallback) {
     $url = esc_url_raw(trim((string) $value));
     if ($url === '' || stripos($url, 'https://') !== 0) {
@@ -329,7 +466,73 @@ function github_chat_widget_sanitize_base_url($value, $fallback) {
         return $fallback;
     }
 
+    if (!github_chat_widget_is_allowed_service_base_url($url)) {
+        return $fallback;
+    }
+
     return $url;
+}
+
+function github_chat_widget_strip_external_urls_from_text($text) {
+    $text = (string) $text;
+    if ($text === '') {
+        return '';
+    }
+
+    $text = preg_replace_callback(
+        '/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i',
+        function ($matches) {
+            $label = isset($matches[1]) ? (string) $matches[1] : '';
+            $url = isset($matches[2]) ? esc_url_raw((string) $matches[2]) : '';
+            return github_chat_widget_is_allowed_public_url($url) ? $matches[0] : $label;
+        },
+        $text
+    );
+
+    $text = preg_replace_callback(
+        '/https?:\/\/[^\s)]+/i',
+        function ($matches) {
+            $url = isset($matches[0]) ? esc_url_raw((string) $matches[0]) : '';
+            return github_chat_widget_is_allowed_public_url($url) ? $matches[0] : '';
+        },
+        $text
+    );
+
+    return trim((string) preg_replace('/\s{2,}/', ' ', (string) $text));
+}
+
+function github_chat_widget_sanitize_clamp_value($value, $fallback) {
+    $value = trim((string) $value);
+
+    if ($value === '') {
+        return (string) $fallback;
+    }
+
+    if (strlen($value) > 100) {
+        return (string) $fallback;
+    }
+
+    if (!preg_match('/^clamp\(\s*-?(?:\d+|\d*\.\d+)(?:px|rem|em|vw|vh|vmin|vmax|%)\s*,\s*-?(?:\d+|\d*\.\d+)(?:px|rem|em|vw|vh|vmin|vmax|%)\s*,\s*-?(?:\d+|\d*\.\d+)(?:px|rem|em|vw|vh|vmin|vmax|%)\s*\)$/i', $value)) {
+        return (string) $fallback;
+    }
+
+    return $value;
+}
+
+function github_chat_widget_sanitize_custom_css($value) {
+    $css = trim((string) $value);
+
+    if ($css === '') {
+        return '';
+    }
+
+    $css = wp_kses_no_null($css);
+    $css = str_ireplace(array('<style', '</style', '<?', '?>'), '', $css);
+    $css = preg_replace('/@import/i', '', $css);
+    $css = preg_replace('/expression\s*\(/i', '', $css);
+    $css = preg_replace('/javascript\s*:/i', '', $css);
+
+    return trim((string) $css);
 }
 
 function github_chat_widget_parse_button_routes($value) {
@@ -366,6 +569,10 @@ function github_chat_widget_parse_button_routes($value) {
         $url = esc_url_raw($url_raw);
 
         if ($key === '' || $url === '') {
+            continue;
+        }
+
+        if (!github_chat_widget_is_allowed_public_url($url)) {
             continue;
         }
 
@@ -496,18 +703,19 @@ function github_chat_widget_parse_payload($raw) {
     preg_match('/\{[\s\S]*\}/', $final_payload, $matches);
 
     if (empty($matches[0])) {
-        return $final_payload;
+        return github_chat_widget_strip_external_urls_from_text($final_payload);
     }
 
     $json = json_decode($matches[0], true);
     if (!is_array($json)) {
-        return $final_payload;
+        return github_chat_widget_strip_external_urls_from_text($final_payload);
     }
 
     $main_answer = isset($json['main_answer']) ? trim((string) $json['main_answer']) : '';
+    $main_answer = github_chat_widget_strip_external_urls_from_text($main_answer);
     $ui_action = isset($json['ui_action']) && is_array($json['ui_action']) ? $json['ui_action'] : null;
 
-    $built = $main_answer !== '' ? $main_answer : $final_payload;
+    $built = $main_answer !== '' ? $main_answer : github_chat_widget_strip_external_urls_from_text($final_payload);
 
     if ($ui_action && !empty($ui_action['show_button'])) {
         $target_url = '';
@@ -515,6 +723,10 @@ function github_chat_widget_parse_payload($raw) {
             $target_url = esc_url_raw($ui_action['target_url']);
         } elseif (isset($ui_action['url']) && is_string($ui_action['url'])) {
             $target_url = esc_url_raw($ui_action['url']);
+        }
+
+        if ($target_url !== '' && !github_chat_widget_is_allowed_public_url($target_url)) {
+            $target_url = '';
         }
 
         $button_data = array(
@@ -533,7 +745,7 @@ function github_chat_widget_parse_payload($raw) {
 
 function github_chat_widget_promote_text_link_to_button($payload, $default_button_label) {
     $parts = explode('|UI_DATA|', (string) $payload, 2);
-    $content = trim((string) $parts[0]);
+    $content = github_chat_widget_strip_external_urls_from_text(trim((string) $parts[0]));
     $ui_data = null;
 
     if (count($parts) === 2) {
@@ -559,6 +771,10 @@ function github_chat_widget_promote_text_link_to_button($payload, $default_butto
     } elseif (!empty($plain_url_match[1])) {
         $target_url = esc_url_raw((string) $plain_url_match[1]);
         $content = trim((string) str_replace($plain_url_match[1], '', $content));
+    }
+
+    if ($target_url !== '' && !github_chat_widget_is_allowed_public_url($target_url)) {
+        $target_url = '';
     }
 
     if ($target_url === '') {
@@ -669,9 +885,12 @@ function github_chat_widget_build_content_catalog() {
 
             $title = get_the_title($post);
             $permalink = get_permalink((int) $post->ID);
-            $preview = trim((string) wp_strip_all_tags((string) $post->post_content));
-            if (strlen($preview) > 220) {
-                $preview = substr($preview, 0, 220);
+            // Render blocks/shortcodes first so Gutenberg block comments are gone before stripping tags
+            $rendered_content = apply_filters('the_content', $post->post_content); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Intentionally applies WordPress core content filter.
+            $preview = trim((string) wp_strip_all_tags((string) $rendered_content));
+            $preview = preg_replace('/\s+/', ' ', $preview);
+            if (strlen($preview) > 500) {
+                $preview = substr($preview, 0, 500);
             }
             $catalog[] = array(
                 'id' => (int) $post->ID,
@@ -869,7 +1088,7 @@ function github_chat_widget_fetch_post_content_via_rest($type, $id) {
     $title = html_entity_decode(wp_strip_all_tags($title_html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
     $content_html = isset($data['content']['rendered']) ? (string) $data['content']['rendered'] : '';
-    $content = html_entity_decode($content_html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $content = html_entity_decode(wp_strip_all_tags($content_html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
     return array(
         'id' => $id,
