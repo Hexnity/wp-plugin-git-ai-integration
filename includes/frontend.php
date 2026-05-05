@@ -41,6 +41,9 @@ function github_chat_widget_register_assets() {
     wp_localize_script('github-chat-widget-script', 'GithubChatWidgetConfig', array(
         'restUrl' => esc_url_raw(rest_url('github-chat-widget/v1/chat')),
         'sessionUrl' => esc_url_raw(rest_url('github-chat-widget/v1/session')),
+        'restNonce' => wp_create_nonce('wp_rest'),
+        'externalServiceConsentEnabled' => github_chat_widget_external_services_consent_enabled($settings),
+        'externalServiceConsentMessage' => 'The chat feature is likely disabled by the site administrator for configuration or privacy reasons. You may need to contact support for more details.',
         'chatTitle' => sanitize_text_field($settings['chat_title']),
         'welcomeText' => sanitize_text_field($settings['welcome_text']),
         'thinkingText' => sanitize_text_field($settings['thinking_text']),

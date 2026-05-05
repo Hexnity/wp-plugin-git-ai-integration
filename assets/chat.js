@@ -54,8 +54,25 @@
   }
 
   function isUrlTarget(value) {
-    var target = String(value || '').trim().toLowerCase();
-    return target.indexOf('/') === 0 || target.indexOf('http://') === 0 || target.indexOf('https://') === 0;
+    var target = String(value || '').trim();
+    if (!target) {
+      return false;
+    }
+
+    if (target.indexOf('/') === 0) {
+      return true;
+    }
+
+    if (target.indexOf('http://') === 0 || target.indexOf('https://') === 0) {
+      try {
+        var parsed = new URL(target, window.location.origin);
+        return parsed.host === window.location.host;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    return false;
   }
 
   function loadStoredState() {
@@ -79,8 +96,18 @@
   function saveStoredState(state) {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        isOpen: !!state.isOpen
+        isOpen: !!state.isOpen,
+        email: typeof state.email === 'string' ? state.email : '',
+        messages: normalizeStoredMessages(state.messages)
       }));
+    } catch (err) {
+      return;
+    }
+  }
+
+  function clearStoredState() {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
     } catch (err) {
       return;
     }
@@ -251,7 +278,8 @@
     var response = await fetch(config.sessionUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': String(config.restNonce || '')
       },
       body: JSON.stringify({ email: email })
     });
@@ -279,7 +307,8 @@
     var response = await fetch(config.restUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': String(config.restNonce || '')
       },
       body: JSON.stringify({
         email: email,
@@ -328,8 +357,8 @@
     var state = {
       isOpen: !!(storedState && storedState.isOpen),
       isLoading: false,
-      email: '',
-      messages: []
+      email: storedState && typeof storedState.email === 'string' ? storedState.email : '',
+      messages: normalizeStoredMessages(storedState && storedState.messages ? storedState.messages : [])
     };
 
     root.innerHTML = '';
@@ -440,6 +469,8 @@
         state.messages = [];
         renderMessages();
       }
+
+      saveStoredState(state);
     }
 
     function togglePanel(open) {
@@ -483,6 +514,7 @@
       state.messages = [];
       emailInput.value = '';
       emailError.textContent = '';
+      clearStoredState();
       setSessionReady(false);
       emailInput.focus();
     });
@@ -518,6 +550,37 @@
 
       var text = input.value.trim();
       if (!state.email || !text || state.isLoading) {
+        return;
+      }
+
+      if (!config.externalServiceConsentEnabled) {
+        var consentMsg = String(config.externalServiceConsentMessage || 'The chat feature is currently unavailable.');
+        var consentRow = createElement('div', 'github-chat-widget-row is-ai');
+        var consentAvatar = createElement('div', 'github-chat-widget-avatar', 'AI');
+        var consentBubble = createElement('div', 'github-chat-widget-bubble');
+        var consentText = createElement('p', 'github-chat-widget-consent-msg', consentMsg);
+        var consentActions = createElement('div', 'github-chat-widget-actions');
+        var consentBtn = createElement('button', 'github-chat-widget-nav-button', 'Contact Support');
+        consentBtn.type = 'button';
+        consentBtn.addEventListener('click', function () {
+          var mailtoLink = document.querySelector('a[href^="mailto:"]');
+          if (mailtoLink) {
+            window.location.href = mailtoLink.href;
+          } else {
+            window.location.href = '/contact';
+          }
+        });
+        consentActions.appendChild(consentBtn);
+        consentBubble.appendChild(consentText);
+        consentBubble.appendChild(consentActions);
+        consentRow.appendChild(consentAvatar);
+        consentRow.appendChild(consentBubble);
+        if (emptyState.parentNode) {
+          emptyState.parentNode.removeChild(emptyState);
+        }
+        messagesWrap.appendChild(consentRow);
+        scrollToBottom(messagesWrap);
+        input.value = '';
         return;
       }
 
@@ -585,7 +648,13 @@
       }
     });
 
-    setSessionReady(false);
+    if (state.email) {
+      emailInput.value = state.email;
+      renderMessages();
+      setSessionReady(true);
+    } else {
+      setSessionReady(false);
+    }
     togglePanel(state.isOpen);
   }
 

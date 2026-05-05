@@ -6,8 +6,8 @@ if (!defined('ABSPATH')) {
 
 function github_chat_widget_admin_menu() {
     add_options_page(
-        'Github Chat Settings',
-        'Github Chat',
+        'Site AI Chat Settings',
+        'Site AI Chat',
         'manage_options',
         'github-chat-widget',
         'github_chat_widget_admin_page'
@@ -59,6 +59,11 @@ function github_chat_widget_admin_assets($hook) {
 add_action('admin_enqueue_scripts', 'github_chat_widget_admin_assets');
 
 function github_chat_widget_fetch_models_catalog() {
+    $settings = github_chat_widget_get_settings();
+    if (!github_chat_widget_external_services_consent_enabled($settings)) {
+        return array();
+    }
+
     $cached = get_transient('github_chat_widget_models_catalog');
     if (is_array($cached)) {
         return $cached;
@@ -140,11 +145,27 @@ function github_chat_widget_admin_page() {
     $css_class_reference = ".github-chat-widget-root\n.github-chat-widget-panel\n.github-chat-widget-header\n.github-chat-widget-title\n.github-chat-widget-change-email\n.github-chat-widget-email-gate\n.github-chat-widget-email-title\n.github-chat-widget-email-form\n.github-chat-widget-email-input\n.github-chat-widget-email-submit\n.github-chat-widget-email-error\n.github-chat-widget-messages\n.github-chat-widget-row.is-user\n.github-chat-widget-row.is-ai\n.github-chat-widget-bubble\n.github-chat-widget-actions\n.github-chat-widget-nav-button\n.github-chat-widget-form\n.github-chat-widget-input\n.github-chat-widget-send\n.github-chat-widget-launcher";
     ?>
     <div class="wrap github-chat-widget-admin-wrap">
-        <h1>Github Chat Settings</h1>
+        <h1>Site AI Chat Settings</h1>
         <p class="github-chat-widget-admin-subtitle">Configure API, appearance, behavior, and route actions from one place.</p>
 
         <form method="post" action="options.php">
             <?php settings_fields('github_chat_widget_group'); ?>
+
+            <div class="github-chat-widget-consent-banner <?php echo github_chat_widget_external_services_consent_enabled($settings) ? 'is-enabled' : 'is-disabled'; ?>">
+                <div class="github-chat-widget-consent-banner-icon">
+                    <?php echo github_chat_widget_external_services_consent_enabled($settings) ? '&#10003;' : '&#9888;'; ?>
+                </div>
+                <div class="github-chat-widget-consent-banner-body">
+                    <strong>External Service Consent</strong>
+                    <p>This plugin sends chat requests and model metadata to external AI services (GitHub Models / Azure Inference API). This is required for the chat widget to function. No chat data is stored by the external service beyond what is needed to fulfill each request.</p>
+                    <p><strong>Services contacted:</strong> <code>models.inference.ai.azure.com</code> (chat completions) and <code>models.github.ai</code> (model catalog). See <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener noreferrer">GitHub Privacy Statement</a> and <a href="https://docs.github.com/en/site-policy/github-terms/github-terms-of-service" target="_blank" rel="noopener noreferrer">Terms of Service</a>.</p>
+                    <label class="github-chat-widget-consent-label">
+                        <input type="checkbox" name="github_chat_widget_settings[external_service_consent]" value="1" <?php checked(!empty($settings['external_service_consent'])); ?> />
+                        I have read the above and consent to sending chat requests and model metadata requests to external AI services.
+                    </label>
+                </div>
+                <?php submit_button('Save Consent Setting', 'secondary', 'submit_consent', false); ?>
+            </div>
 
             <div class="github-chat-widget-admin-grid">
                 <section class="github-chat-widget-admin-card">
@@ -167,7 +188,7 @@ function github_chat_widget_admin_page() {
                                 <?php
                                 $catalog_models = github_chat_widget_fetch_models_catalog();
                                 $current_model = esc_attr(github_chat_widget_normalize_model_id($settings['model']));
-                                if (!empty($catalog_models)) :
+                                if (github_chat_widget_external_services_consent_enabled($settings) && !empty($catalog_models)) :
                                     $by_publisher = array();
                                     $descriptions = array();
                                     foreach ($catalog_models as $cm) {
@@ -192,13 +213,16 @@ function github_chat_widget_admin_page() {
                                 </script>
                                 <?php else : ?>
                                 <input id="github_chat_widget_model" type="text" class="regular-text" name="github_chat_widget_settings[model]" value="<?php echo esc_attr($current_model); ?>" />
-                                <p class="description">Could not load model catalog. Enter model ID manually.</p>
+                                <p class="description"><?php echo github_chat_widget_external_services_consent_enabled($settings) ? 'Could not load model catalog. Enter model ID manually.' : 'Enable external service consent to load the model catalog, or enter model ID manually.'; ?></p>
                                 <?php endif; ?>
                             </td>
                         </tr>
                         <tr>
                             <th scope="row"><label for="github_chat_widget_base_url">Base URL</label></th>
-                            <td><input id="github_chat_widget_base_url" type="url" class="regular-text code" name="github_chat_widget_settings[base_url]" value="<?php echo esc_attr($settings['base_url']); ?>" /></td>
+                            <td>
+                                <input id="github_chat_widget_base_url" type="url" class="regular-text code" name="github_chat_widget_settings[base_url]" value="<?php echo esc_attr($settings['base_url']); ?>" />
+                                <p class="description">Only the documented HTTPS chat completion endpoint is permitted for security and WordPress.org compliance.</p>
+                            </td>
                         </tr>
                         <tr>
                             <th scope="row"><label for="github_chat_widget_temperature">Temperature</label></th>

@@ -108,6 +108,7 @@ function github_chat_widget_sanitize_settings($input) {
 
     return array(
         'chat_title' => isset($input['chat_title']) ? sanitize_text_field($input['chat_title']) : $defaults['chat_title'],
+        'external_service_consent' => isset($input['external_service_consent']) ? '1' : '',
         'api_key' => $api_key,
         'model' => $model,
         'base_url' => isset($input['base_url'])

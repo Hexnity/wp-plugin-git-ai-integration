@@ -62,6 +62,7 @@ function github_chat_widget_normalize_model_id($value) {
 function github_chat_widget_defaults() {
     return array(
         'chat_title' => 'Github Chat',
+        'external_service_consent' => '',
         'api_key' => '',
         'model' => 'gpt-4o-mini',
         'base_url' => 'https://models.inference.ai.azure.com/chat/completions',
@@ -97,6 +98,48 @@ function github_chat_widget_defaults() {
         'system_prompt' => github_chat_widget_default_system_prompt(),
         'advanced_css' => '',
     );
+}
+
+function github_chat_widget_external_services_consent_enabled($settings = null) {
+    if (!is_array($settings)) {
+        $settings = github_chat_widget_get_settings();
+    }
+
+    return !empty($settings['external_service_consent']);
+}
+
+function github_chat_widget_allowed_service_hosts() {
+    return array(
+        'models.inference.ai.azure.com',
+    );
+}
+
+function github_chat_widget_is_allowed_service_base_url($url) {
+    $url = trim((string) $url);
+    if ($url === '') {
+        return false;
+    }
+
+    $parts = wp_parse_url($url);
+    if (!is_array($parts) || empty($parts['host']) || empty($parts['scheme']) || empty($parts['path'])) {
+        return false;
+    }
+
+    if (strtolower((string) $parts['scheme']) !== 'https') {
+        return false;
+    }
+
+    if (!empty($parts['query']) || !empty($parts['fragment'])) {
+        return false;
+    }
+
+    $host = strtolower((string) $parts['host']);
+    if (!in_array($host, github_chat_widget_allowed_service_hosts(), true)) {
+        return false;
+    }
+
+    $path = rtrim((string) $parts['path'], '/');
+    return in_array($path, array('/chat/completions', '/v1/chat/completions'), true);
 }
 
 function github_chat_widget_users_table_name() {
@@ -377,6 +420,34 @@ function github_chat_widget_sanitize_position($value) {
     return $value;
 }
 
+function github_chat_widget_is_allowed_public_url($url) {
+    $url = trim((string) $url);
+    if ($url === '') {
+        return false;
+    }
+
+    if (strpos($url, '/') === 0 && strpos($url, '//') !== 0) {
+        return true;
+    }
+
+    $parts = wp_parse_url($url);
+    if (!is_array($parts) || empty($parts['host'])) {
+        return false;
+    }
+
+    $scheme = isset($parts['scheme']) ? strtolower((string) $parts['scheme']) : '';
+    if ($scheme !== 'http' && $scheme !== 'https') {
+        return false;
+    }
+
+    $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+    if (empty($site_host)) {
+        return false;
+    }
+
+    return strtolower((string) $parts['host']) === strtolower((string) $site_host);
+}
+
 function github_chat_widget_sanitize_base_url($value, $fallback) {
     $url = esc_url_raw(trim((string) $value));
     if ($url === '' || stripos($url, 'https://') !== 0) {
@@ -392,7 +463,39 @@ function github_chat_widget_sanitize_base_url($value, $fallback) {
         return $fallback;
     }
 
+    if (!github_chat_widget_is_allowed_service_base_url($url)) {
+        return $fallback;
+    }
+
     return $url;
+}
+
+function github_chat_widget_strip_external_urls_from_text($text) {
+    $text = (string) $text;
+    if ($text === '') {
+        return '';
+    }
+
+    $text = preg_replace_callback(
+        '/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i',
+        function ($matches) {
+            $label = isset($matches[1]) ? (string) $matches[1] : '';
+            $url = isset($matches[2]) ? esc_url_raw((string) $matches[2]) : '';
+            return github_chat_widget_is_allowed_public_url($url) ? $matches[0] : $label;
+        },
+        $text
+    );
+
+    $text = preg_replace_callback(
+        '/https?:\/\/[^\s)]+/i',
+        function ($matches) {
+            $url = isset($matches[0]) ? esc_url_raw((string) $matches[0]) : '';
+            return github_chat_widget_is_allowed_public_url($url) ? $matches[0] : '';
+        },
+        $text
+    );
+
+    return trim((string) preg_replace('/\s{2,}/', ' ', (string) $text));
 }
 
 function github_chat_widget_sanitize_clamp_value($value, $fallback) {
@@ -463,6 +566,10 @@ function github_chat_widget_parse_button_routes($value) {
         $url = esc_url_raw($url_raw);
 
         if ($key === '' || $url === '') {
+            continue;
+        }
+
+        if (!github_chat_widget_is_allowed_public_url($url)) {
             continue;
         }
 
@@ -593,18 +700,19 @@ function github_chat_widget_parse_payload($raw) {
     preg_match('/\{[\s\S]*\}/', $final_payload, $matches);
 
     if (empty($matches[0])) {
-        return $final_payload;
+        return github_chat_widget_strip_external_urls_from_text($final_payload);
     }
 
     $json = json_decode($matches[0], true);
     if (!is_array($json)) {
-        return $final_payload;
+        return github_chat_widget_strip_external_urls_from_text($final_payload);
     }
 
     $main_answer = isset($json['main_answer']) ? trim((string) $json['main_answer']) : '';
+    $main_answer = github_chat_widget_strip_external_urls_from_text($main_answer);
     $ui_action = isset($json['ui_action']) && is_array($json['ui_action']) ? $json['ui_action'] : null;
 
-    $built = $main_answer !== '' ? $main_answer : $final_payload;
+    $built = $main_answer !== '' ? $main_answer : github_chat_widget_strip_external_urls_from_text($final_payload);
 
     if ($ui_action && !empty($ui_action['show_button'])) {
         $target_url = '';
@@ -612,6 +720,10 @@ function github_chat_widget_parse_payload($raw) {
             $target_url = esc_url_raw($ui_action['target_url']);
         } elseif (isset($ui_action['url']) && is_string($ui_action['url'])) {
             $target_url = esc_url_raw($ui_action['url']);
+        }
+
+        if ($target_url !== '' && !github_chat_widget_is_allowed_public_url($target_url)) {
+            $target_url = '';
         }
 
         $button_data = array(
@@ -630,7 +742,7 @@ function github_chat_widget_parse_payload($raw) {
 
 function github_chat_widget_promote_text_link_to_button($payload, $default_button_label) {
     $parts = explode('|UI_DATA|', (string) $payload, 2);
-    $content = trim((string) $parts[0]);
+    $content = github_chat_widget_strip_external_urls_from_text(trim((string) $parts[0]));
     $ui_data = null;
 
     if (count($parts) === 2) {
@@ -656,6 +768,10 @@ function github_chat_widget_promote_text_link_to_button($payload, $default_butto
     } elseif (!empty($plain_url_match[1])) {
         $target_url = esc_url_raw((string) $plain_url_match[1]);
         $content = trim((string) str_replace($plain_url_match[1], '', $content));
+    }
+
+    if ($target_url !== '' && !github_chat_widget_is_allowed_public_url($target_url)) {
+        $target_url = '';
     }
 
     if ($target_url === '') {

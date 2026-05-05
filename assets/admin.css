@@ -2,6 +2,83 @@
   max-width: 1200px;
 }
 
+/* ── Consent banner ──────────────────────────────────────────── */
+.github-chat-widget-consent-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 18px 20px;
+  border-radius: 12px;
+  border-left: 5px solid #f59e0b;
+  background: #fffbeb;
+  box-shadow: 0 1px 4px rgba(245, 158, 11, 0.15);
+}
+
+.github-chat-widget-consent-banner.is-enabled {
+  border-left-color: #10b981;
+  background: #f0fdf4;
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.15);
+}
+
+.github-chat-widget-consent-banner-icon {
+  flex-shrink: 0;
+  font-size: 22px;
+  line-height: 1;
+  margin-top: 2px;
+  color: #f59e0b;
+}
+
+.github-chat-widget-consent-banner.is-enabled .github-chat-widget-consent-banner-icon {
+  color: #10b981;
+}
+
+.github-chat-widget-consent-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.github-chat-widget-consent-banner-body strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.github-chat-widget-consent-banner-body p {
+  margin: 0 0 8px;
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.github-chat-widget-consent-banner-body code {
+  background: rgba(0,0,0,0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.github-chat-widget-consent-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+.github-chat-widget-consent-label input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.github-chat-widget-consent-banner .button {
+  flex-shrink: 0;
+  margin-top: 2px;
+  align-self: flex-start;
+}
+
 .github-chat-widget-admin-subtitle {
   margin-top: 4px;
   margin-bottom: 16px;

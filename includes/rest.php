@@ -23,16 +23,50 @@ function github_chat_widget_register_rest_routes() {
 }
 add_action('rest_api_init', 'github_chat_widget_register_rest_routes');
 
+function github_chat_widget_validate_rest_nonce() {
+    $nonce = '';
+
+    if (isset($_SERVER['HTTP_X_WP_NONCE'])) {
+        $nonce = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE']));
+    } elseif (isset($_REQUEST['_wpnonce'])) {
+        $nonce = sanitize_text_field(wp_unslash($_REQUEST['_wpnonce']));
+    }
+
+    if ($nonce === '') {
+        return false;
+    }
+
+    return (bool) wp_verify_nonce($nonce, 'wp_rest');
+}
+
 function github_chat_widget_validate_request_origin() {
-    $origin = isset($_SERVER['HTTP_ORIGIN']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_ORIGIN'])) : '';
-    if ($origin === '') {
+    if (github_chat_widget_validate_rest_nonce()) {
         return true;
     }
 
-    $origin_host = wp_parse_url($origin, PHP_URL_HOST);
-    $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+    $origin = isset($_SERVER['HTTP_ORIGIN']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_ORIGIN'])) : '';
+    $referer = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
 
-    if (!empty($origin_host) && !empty($site_host) && strtolower((string) $origin_host) !== strtolower((string) $site_host)) {
+    $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+    if (empty($site_host)) {
+        return false;
+    }
+
+    $origin_host = $origin !== '' ? wp_parse_url($origin, PHP_URL_HOST) : '';
+    $referer_host = $referer !== '' ? wp_parse_url($referer, PHP_URL_HOST) : '';
+
+    // Public routes should only be called from this same site.
+    if ($origin_host === '' && $referer_host === '') {
+        return false;
+    }
+
+    $site_host = strtolower((string) $site_host);
+
+    if ($origin_host !== '' && strtolower((string) $origin_host) !== $site_host) {
+        return false;
+    }
+
+    if ($referer_host !== '' && strtolower((string) $referer_host) !== $site_host) {
         return false;
     }
 
@@ -116,7 +150,20 @@ function github_chat_widget_normalize_messages($messages) {
 }
 
 function github_chat_widget_send_chat_completion($settings, $payload) {
-    $base_url = trim((string) $settings['base_url']);
+    $defaults = github_chat_widget_defaults();
+    $base_url = github_chat_widget_sanitize_base_url(
+        isset($settings['base_url']) ? $settings['base_url'] : '',
+        $defaults['base_url']
+    );
+
+    if (!github_chat_widget_is_allowed_service_base_url($base_url)) {
+        return array(
+            'ok' => false,
+            'status' => 500,
+            'body' => '',
+            'error' => 'Configured AI endpoint is not allowed.',
+        );
+    }
     $model_id = isset($payload['model']) ? github_chat_widget_normalize_model_id($payload['model']) : '';
 
     if ($model_id === '') {
@@ -124,7 +171,6 @@ function github_chat_widget_send_chat_completion($settings, $payload) {
     }
 
     if ($model_id === '') {
-        $defaults = github_chat_widget_defaults();
         $model_id = github_chat_widget_normalize_model_id($defaults['model']);
     }
 
@@ -224,6 +270,10 @@ function github_chat_widget_rest_handler(WP_REST_Request $request) {
     }
 
     $settings = github_chat_widget_get_settings();
+
+    if (!github_chat_widget_external_services_consent_enabled($settings)) {
+        return new WP_REST_Response(array('error' => 'External service consent is disabled by site admin.'), 403);
+    }
 
     if (empty($settings['api_key'])) {
         return new WP_REST_Response(array('error' => 'API key is not configured in plugin settings.'), 500);
