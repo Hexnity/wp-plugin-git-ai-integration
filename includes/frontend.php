@@ -105,6 +105,6 @@ function github_chat_widget_footer_injection() {
     }
 
     github_chat_widget_enqueue_widget();
-    echo github_chat_widget_widget_markup();
+    echo github_chat_widget_widget_markup(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Output is plugin-generated HTML markup, not user input.
 }
 add_action('wp_footer', 'github_chat_widget_footer_injection');

@@ -172,12 +172,13 @@ function github_chat_widget_find_or_create_email_user($email) {
     $users_table = github_chat_widget_users_table_name();
     $now = current_time('mysql');
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name is built from $wpdb->prefix and a literal string.
     $existing_id = (int) $wpdb->get_var(
-        $wpdb->prepare("SELECT id FROM {$users_table} WHERE email = %s", $safe_email)
+        $wpdb->prepare("SELECT id FROM {$users_table} WHERE email = %s", $safe_email) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     );
 
     if ($existing_id > 0) {
-        $wpdb->update(
+        $wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $users_table,
             array(
                 'updated_at' => $now,
@@ -191,7 +192,7 @@ function github_chat_widget_find_or_create_email_user($email) {
         return $existing_id;
     }
 
-    $inserted = $wpdb->insert(
+    $inserted = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $users_table,
         array(
             'email' => $safe_email,
@@ -288,8 +289,9 @@ function github_chat_widget_get_chat_history_by_email($email) {
     }
 
     $history_table = github_chat_widget_history_table_name();
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name is built from $wpdb->prefix and a literal string.
     $row = $wpdb->get_row(
-        $wpdb->prepare("SELECT messages_json FROM {$history_table} WHERE email = %s", $safe_email),
+        $wpdb->prepare("SELECT messages_json FROM {$history_table} WHERE email = %s", $safe_email), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         ARRAY_A
     );
 
@@ -322,8 +324,9 @@ function github_chat_widget_save_chat_history($email, $messages) {
     $history_table = github_chat_widget_history_table_name();
     $now = current_time('mysql');
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name is built from $wpdb->prefix and a literal string.
     $existing_id = (int) $wpdb->get_var(
-        $wpdb->prepare("SELECT id FROM {$history_table} WHERE email = %s", $safe_email)
+        $wpdb->prepare("SELECT id FROM {$history_table} WHERE email = %s", $safe_email) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     );
 
     $data = array(
@@ -335,7 +338,7 @@ function github_chat_widget_save_chat_history($email, $messages) {
     );
 
     if ($existing_id > 0) {
-        $updated = $wpdb->update(
+        $updated = $wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
             $history_table,
             $data,
             array('id' => $existing_id),
@@ -348,7 +351,7 @@ function github_chat_widget_save_chat_history($email, $messages) {
 
     $data['created_at'] = $now;
 
-    $inserted = $wpdb->insert(
+    $inserted = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
         $history_table,
         $data,
         array('%d', '%s', '%s', '%d', '%s', '%s')
@@ -883,7 +886,7 @@ function github_chat_widget_build_content_catalog() {
             $title = get_the_title($post);
             $permalink = get_permalink((int) $post->ID);
             // Render blocks/shortcodes first so Gutenberg block comments are gone before stripping tags
-            $rendered_content = apply_filters('the_content', $post->post_content);
+            $rendered_content = apply_filters('the_content', $post->post_content); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Intentionally applies WordPress core content filter.
             $preview = trim((string) wp_strip_all_tags((string) $rendered_content));
             $preview = preg_replace('/\s+/', ' ', $preview);
             if (strlen($preview) > 500) {

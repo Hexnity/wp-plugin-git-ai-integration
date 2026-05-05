@@ -116,8 +116,9 @@ function github_chat_widget_get_admin_email_rows($limit = 100) {
     $limit = max(1, min(500, (int) $limit));
     $table = github_chat_widget_users_table_name();
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name is built from $wpdb->prefix and a literal string; result is admin-only and does not require caching.
     return $wpdb->get_results(
-        $wpdb->prepare("SELECT id, email, created_at, last_seen_at FROM {$table} ORDER BY last_seen_at DESC LIMIT %d", $limit),
+        $wpdb->prepare("SELECT id, email, created_at, last_seen_at FROM {$table} ORDER BY last_seen_at DESC LIMIT %d", $limit), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         ARRAY_A
     );
 }
@@ -128,8 +129,9 @@ function github_chat_widget_get_admin_history_rows($limit = 100) {
     $limit = max(1, min(500, (int) $limit));
     $table = github_chat_widget_history_table_name();
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table name is built from $wpdb->prefix and a literal string; result is admin-only and does not require caching.
     return $wpdb->get_results(
-        $wpdb->prepare("SELECT id, email, message_count, messages_json, updated_at FROM {$table} ORDER BY updated_at DESC LIMIT %d", $limit),
+        $wpdb->prepare("SELECT id, email, message_count, messages_json, updated_at FROM {$table} ORDER BY updated_at DESC LIMIT %d", $limit), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         ARRAY_A
     );
 }
